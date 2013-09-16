@@ -120,10 +120,12 @@ public class AgentState {
 	 * Returns a string representation of this state.
 	 */
 	public String toString() {
-		String result = String.format("%f %f %f", position.getX(),
+		String result = String.format("%8f %8f %11f", position.getX(),
 				position.getY(), Math.toDegrees(heading));
 		if (hasCamera) {
-			result += String.format(" %f", cameraArmLength);
+			result += String.format(" %8f", cameraArmLength);
+		} else {
+			result += String.format("%9s", "");
 		}
 		return result;
 	}

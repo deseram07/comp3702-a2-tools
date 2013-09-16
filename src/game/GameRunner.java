@@ -1,8 +1,15 @@
 package game;
 
+import geom.GeomTools;
 import geom.Vector2D;
 
+import java.awt.Shape;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Arc2D;
+import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
+import java.awt.geom.Line2D.Double;
+import java.awt.geom.Rectangle2D;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -30,7 +37,8 @@ import tracker.TrackerMotionHistory;
  * @author lackofcheese
  */
 public class GameRunner {
-	private double MAX_DISTANCE_ERROR = 1e-5;
+	private double MAX_ERROR = 1e-5;
+	private int NUM_CAMERA_ARM_STEPS = 1000;
 
 	/* ------------------------ SETUP PARAMETERS -------------------------- */
 
@@ -528,7 +536,7 @@ public class GameRunner {
 		ActionResult result;
 		if (action != null) {
 			result = simulateAction(cs.turnNo, cs.currentPlayer, action);
-			scores[cs.currentPlayer] += result.getReward();
+			cs.playerScores[cs.currentPlayer] += result.getReward();
 		} else {
 			result = new ActionResult(null, previousResult.getNewState(), 0);
 		}
@@ -574,7 +582,7 @@ public class GameRunner {
 				if (cs.goalReached[otherNo]) {
 					continue;
 				}
-				if (action.isCallingHQ() || canSee(playerNo, otherNo)) {
+				if (action.isCallingHQ() || canSee(0, otherNo)) {
 					reward += 1;
 					cs.trackerPercepts.add(new Percept(turnNo, otherNo,
 							new AgentState(cs.playerStates[otherNo])));
@@ -611,51 +619,116 @@ public class GameRunner {
 			return new ActionResult(action, startState, 0);
 		}
 
+		Point2D startPos = startState.getPosition();
+		double startHeading = startState.getHeading();
+
 		AgentState endState = action.getResultingState();
 		Point2D endPos = endState.getPosition();
 		double heading = action.getHeading();
 		boolean hasCamera = endState.hasCamera();
-		double newCameraArmLength = endState.getCameraArmLength();
-
+		double armLength = endState.getCameraArmLength();
+		boolean canTurn = true;
 		if (hasCamera) {
 			double minLength = trackerSensingParams.getMinLength();
 			double maxLength = trackerSensingParams.getMaxLength();
-			if (newCameraArmLength < minLength) {
-				newCameraArmLength = minLength;
-			} else if (newCameraArmLength > maxLength) {
-				newCameraArmLength = maxLength;
+			if (armLength < minLength) {
+				armLength = minLength;
+			} else if (armLength > maxLength) {
+				armLength = maxLength;
+			}
+
+			if (!canTurn(startPos, startHeading, heading, armLength)) {
+				endPos = startPos;
+				heading = startHeading;
+				canTurn = false;
 			}
 		}
 
-		Point2D startPos = startState.getPosition();
-		double distance = action.getDistance();
-		if (distance > maxMovementDistance + MAX_DISTANCE_ERROR) {
-			distance = maxMovementDistance;
-			endPos = new Vector2D(distance, heading).addedTo(startPos);
+		if (canTurn) {
+			double distance = action.getDistance();
+			if (distance > maxMovementDistance + MAX_ERROR) {
+				distance = maxMovementDistance;
+				endPos = new Vector2D(distance, heading).addedTo(startPos);
+			}
+
+			if (!canMove(startPos, endPos, hasCamera, armLength)) {
+				endPos = startPos;
+			}
 		}
 
-		if (!canMove(startState, endState)) {
-			endPos = startPos;
-		}
-
-		endState = new AgentState(endPos, heading, hasCamera,
-				newCameraArmLength);
+		endState = new AgentState(endPos, heading, hasCamera, armLength);
 		cs.playerStates[playerNo] = endState;
 		return new ActionResult(action, endState, 0);
 	}
 
 	/**
-	 * Returns true iff the direct motion between the two states is valid.
+	 * Return true if turning from the initial heading to the final heading at
+	 * the given position is valid.
 	 * 
-	 * @param startState
-	 *            the starting state.
-	 * @param endState
-	 *            the ending state.
-	 * @return
+	 * @param centre
+	 *            the centre position.
+	 * @param startHeading
+	 *            the initial heading.
+	 * @param endHeading
+	 *            the final heading.
+	 * @param armLength
+	 *            the length of the camera arm.
+	 * @return true
 	 */
-	public boolean canMove(AgentState startState, AgentState endState) {
-		// TODO Implement the movement test.
-		return true;
+	public boolean canTurn(Point2D centre, double startHeading,
+			double endHeading, double armLength) {
+		Arc2D arc = new Arc2D.Double();
+		double startDeg = -Math.toDegrees(startHeading - Math.PI / 2);
+		double extentDeg = -Math.toDegrees(GeomTools.normaliseAngle(endHeading
+				- startHeading));
+		for (int i = 0; i < 2; i++) {
+			arc.setArcByCenter(centre.getX(), centre.getY(), armLength,
+					startDeg, extentDeg, Arc2D.PIE);
+			if (isCollisionFree(arc)) {
+				return true;
+			}
+			if (extentDeg <= 0) {
+				extentDeg += 360;
+			} else {
+				extentDeg -= 360;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Returns true iff moving from the start to the end with the given arm
+	 * length is valid.
+	 * 
+	 * @param startPos
+	 *            the start position.
+	 * @param endPos
+	 *            the end position.
+	 * @param hasCamera
+	 *            whether a camera arm is present.
+	 * @param armLength
+	 *            the length of the camera arm.
+	 * @return true iff moving from the start to the end with the given arm
+	 *         length is valid.
+	 */
+	public boolean canMove(Point2D startPos, Point2D endPos, boolean hasCamera,
+			double armLength) {
+		Line2D line = new Line2D.Double(startPos, endPos);
+		if (!isCollisionFree(line)) {
+			return false;
+		}
+		if (!hasCamera) {
+			return true;
+		}
+
+		Vector2D disp = new Vector2D(startPos, endPos);
+		double distance = disp.getMagnitude();
+		double heading = disp.getDirection();
+		Rectangle2D rec = new Rectangle2D.Double(startPos.getX(),
+				startPos.getY(), armLength, distance);
+		AffineTransform tf = AffineTransform.getRotateInstance(heading
+				- Math.PI / 2, startPos.getX(), startPos.getY());
+		return isCollisionFree(tf.createTransformedShape(rec));
 	}
 
 	/**
@@ -665,11 +738,92 @@ public class GameRunner {
 	 *            the player no. of the observer.
 	 * @param observedNo
 	 *            the player no. of the observed.
-	 * @return
+	 * @return true iff the observer can see the observed.
 	 */
 	public boolean canSee(int observerNo, int observedNo) {
-		// TODO Implement the vision test.
-		return false;
+		AgentState observedState = cs.playerStates[observedNo];
+		Point2D observedPos = observedState.getPosition();
+		if (canSee(observerNo, observedPos)) {
+			return true;
+		}
+		if (observedNo != 0 || !cs.playerStates[0].hasCamera()) {
+			return false;
+		}
+		double armDirection = observedState.getHeading() - Math.PI / 2;
+		double armLength = observedState.getCameraArmLength();
+		Point2D observedCameraPos = new Vector2D(armLength, armDirection)
+				.addedTo(observedPos);
+		int count = 0;
+		for (int i = 1; i <= NUM_CAMERA_ARM_STEPS; i++) {
+			double t = ((double) i) / NUM_CAMERA_ARM_STEPS;
+			Point2D p = GeomTools.interpolatePoint(observedPos,
+					observedCameraPos, t);
+			if (canSee(observerNo, p)) {
+				count += 1;
+			}
+		}
+		return (count * 2 > NUM_CAMERA_ARM_STEPS + 1);
+	}
+
+	/**
+	 * Returns true iff the given observer can see the given point.
+	 * 
+	 * @param observerNo
+	 *            the player no. of the observer.
+	 * @param point
+	 *            the point.
+	 * @return true iff the given observer can see the given point.
+	 */
+	public boolean canSee(int observerNo, Point2D point) {
+		SensingParameters sp = (observerNo == 0 ? targetSensingParams
+				: trackerSensingParams);
+		AgentState observerState = cs.playerStates[observerNo];
+		Point2D observerPos = observerState.getPosition();
+		double observerHeading = observerState.getHeading();
+		Point2D viewPos = observerPos;
+
+		if (observerState.hasCamera()) {
+			double armDirection = observerHeading - Math.PI / 2;
+			double armLength = observerState.getCameraArmLength();
+			viewPos = new Vector2D(armLength, armDirection)
+					.addedTo(observerPos);
+		}
+
+		Vector2D viewVector = new Vector2D(viewPos, point);
+
+		// Verify the viewing range.
+		double distance = viewVector.getMagnitude();
+		if (distance < MAX_ERROR) {
+			return true;
+		}
+		if (distance > sp.getRange() + MAX_ERROR) {
+			return false;
+		}
+
+		// Verify the viewing angle.
+		double viewAngleDelta = GeomTools.normaliseAngle(viewVector
+				.getDirection() - observerHeading);
+		if (Math.abs(viewAngleDelta) > sp.getAngle() / 2 + MAX_ERROR) {
+			return false;
+		}
+
+		return isCollisionFree(new Line2D.Double(viewPos, point));
+	}
+
+	/**
+	 * Returns true iff the given line doesn't collide with any obstacles.
+	 * 
+	 * @param s
+	 *            the line to test.
+	 * @return true iff the given line doesn't collide with any obstacles.
+	 */
+	public boolean isCollisionFree(Shape s) {
+		for (RectRegion obs : obstacles) {
+			if (s.intersects(obs.getRect())) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**

@@ -6,7 +6,6 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -19,7 +18,6 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -35,14 +33,12 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JSlider;
 import javax.swing.JTable;
 import javax.swing.border.EtchedBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import javax.swing.table.TableModel;
 import javax.swing.table.AbstractTableModel;
 
 public class Visualiser {
@@ -551,6 +547,10 @@ public class Visualiser {
 			int player = vp.getCurrentState().getCurrentPlayer();
 			infoLabel.setText("Target #" + player + " to act.");
 		}
+	}
+
+	public void updateTable() {
+		tableDataModel.fireTableDataChanged();
 	}
 
 	public void updateMaximum() {
