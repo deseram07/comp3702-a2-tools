@@ -1,5 +1,7 @@
 package visualiser;
 
+import game.GameRunner;
+
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
@@ -17,6 +19,7 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -32,35 +35,36 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JSlider;
-import javax.swing.JSpinner;
-import javax.swing.SpinnerNumberModel;
+import javax.swing.JTable;
 import javax.swing.border.EtchedBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import javax.swing.table.TableModel;
+import javax.swing.table.AbstractTableModel;
+
 
 public class Visualiser {
 	private Container container;
 
+	private GameRunner gameRunner;
 	private VisualisationPanel vp;
 
 	private JPanel infoPanel;
+	private JTable scoreTable;
 	private JLabel infoLabel;
 
 	private JMenuBar menuBar;
 	private JMenu fileMenu;
-	private JMenuItem loadProblemItem, loadSolutionItem, exitItem; // assumeDirectSolutionItem
-	private JMenu animationMenu;
-	private JMenuItem initialiseItem, playPauseItem, stopItem;
-	private JMenu displayMenu;
-	private JMenuItem problemItem, solutionItem;
+	private JMenuItem loadSetupItem, writeOutputItem, exitItem;
+	private JMenu gameMenu;
+	private JMenuItem playPauseItem, resetItem, backItem, forwardItem, stepItem;
 
-	private JPanel animationControls;
+	private JPanel gameControls;
 	private JSlider manualSlider;
-	private JSlider framerateSlider;
-
-	private JSpinner samplingSpinner;
+	private JSlider framePeriodSlider;
 
 	protected ImageIcon createImageIcon(String path, String description) {
 		java.net.URL imgURL = getClass().getResource(path);
@@ -71,55 +75,44 @@ public class Visualiser {
 		}
 	}
 
-	private JButton playPauseButton, stopButton;
+	private JButton playPauseButton, resetButton, backButton, forwardButton,
+			stepButton;
 	private ImageIcon playIcon = createImageIcon("play.gif", "Play");
 	private ImageIcon pauseIcon = createImageIcon("pause.gif", "Pause");
-	private ImageIcon stopIcon = createImageIcon("stop.gif", "Stop");
+	private ImageIcon resetIcon = createImageIcon("reset.gif", "Reset");
+	private ImageIcon backIcon = createImageIcon("back.gif", "Back");
+	private ImageIcon forwardIcon = createImageIcon("forward.gif", "Forward");
+	private ImageIcon stepIcon = createImageIcon("step.gif", "Step");
 
-	private boolean animating;
-	private boolean wasPlaying = false;
+	private boolean hasSetup;
 	private boolean playing;
-	private boolean hasProblem;
-	private boolean hasSolution;
+	private boolean wasPlaying;
 
-	private static final int FRAMERATE_MIN = 1;
-	private static final int FRAMERATE_MAX = 200;
-	private static final int FRAMERATE_INIT = 50;
-
-	private static final int SAMPLING_PERIOD_INIT = 100;
+	private static final int FRAME_PERIOD_MIN = 10;
+	private static final int FRAME_PERIOD_MAX = 1000;
+	private static final int FRAME_PERIOD_INIT = 500;
 
 	private File defaultPath;
 
 	private class MenuListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
 			String cmd = e.getActionCommand();
-			if (cmd.equals("Problem")) {
-				setAnimating(false);
-				vp.setDisplayingSolution(false);
-				setInfoText();
-				vp.repaint();
-			} else if (cmd.equals("Solution")) {
-				setAnimating(false);
-				vp.setDisplayingSolution(true);
-				setInfoText();
-				vp.repaint();
-			} else if (cmd.equals("Load problem")) {
-				setAnimating(false);
-				loadProblem();
-			} else if (cmd.equals("Load solution")) {
-				setAnimating(false);
-				loadSolution();
-			} else if (cmd.equals("Exit")) {
-				container.setVisible(false);
-				System.exit(0);
-			} else if (cmd.equals("Initialise")) {
-				setAnimating(true);
+			if (cmd.equals("Load setup")) {
+				loadSetup();
+			} else if (cmd.equals("Write output")) {
+				writeOutput();
 			} else if (cmd.equals("Play")) {
-				playPause();
+				vp.playPauseAnimation();
 			} else if (cmd.equals("Pause")) {
-				playPause();
-			} else if (cmd.equals("Stop")) {
-				setAnimating(false);
+				vp.playPauseAnimation();
+			} else if (cmd.equals("Reset")) {
+				vp.resetGame();
+			} else if (cmd.equals("Back one step")) {
+				vp.gotoFrame(vp.getFrameNumber() - 1);
+			} else if (cmd.equals("Forward one step")) {
+				vp.gotoFrame(vp.getFrameNumber() + 1);
+			} else if (cmd.equals("Simulate one step")) {
+				vp.stepGame();
 			}
 		}
 	}
@@ -142,6 +135,40 @@ public class Visualiser {
 		public void componentShown(ComponentEvent e) {
 		}
 	}
+	
+	private AbstractTableModel tableDataModel = new AbstractTableModel() {
+		/** Required UID */
+		private static final long serialVersionUID = 2401048818869542809L;
+		public int getColumnCount() {
+			if (!gameRunner.setupLoaded()) {
+				return 0;
+			}
+			return gameRunner.getNumTargets() + 2;
+		}
+		
+		public int getRowCount() {
+			return 2;
+		}
+		
+		public Object getValueAt(int row, int col) {
+			if (col == 0) {
+				if (row == 0) {
+					return "Player";
+				} else {
+					return "Score";
+				}
+			}
+			if (row == 0) {
+				if (col == 1) {
+					return "Tracker";
+				} else {
+					return "Target #" + (col - 1);
+				}
+			} else {
+				return vp.getCurrentState().getPlayerScores()[col - 1];
+			}
+		}
+	};
 
 	private ResizeListener resizeListener = new ResizeListener();
 	private MenuListener menuListener = new MenuListener();
@@ -155,7 +182,11 @@ public class Visualiser {
 					vp.playPauseAnimation();
 				}
 			}
-			vp.gotoFrame(manualSlider.getValue());
+			int value = manualSlider.getValue();
+			if (value < 0) {
+				value = 0;
+			}
+			vp.gotoFrame(value);
 		}
 	};
 
@@ -185,52 +216,66 @@ public class Visualiser {
 		}
 	};
 
-	private ChangeListener framerateListener = new ChangeListener() {
+	private ChangeListener framePeriodListener = new ChangeListener() {
 		@Override
 		public void stateChanged(ChangeEvent e) {
-			vp.setFramerate(framerateSlider.getValue());
-		}
-	};
-
-	private ChangeListener samplingListener = new ChangeListener() {
-		@Override
-		public void stateChanged(ChangeEvent e) {
-			vp.setSamplingPeriod((Integer) samplingSpinner.getValue());
+			vp.setPeriod(framePeriodSlider.getValue());
 		}
 	};
 
 	private ActionListener playPauseListener = new ActionListener() {
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
-			playPause();
+			vp.playPauseAnimation();
+		}
+	};
+	
+	private ActionListener forwardListener = new ActionListener() {
+		@Override
+		public void actionPerformed(ActionEvent arg0) {
+			vp.gotoFrame(vp.getFrameNumber() + 1);
+		}
+	};
+	
+	private ActionListener backListener = new ActionListener() {
+		@Override
+		public void actionPerformed(ActionEvent arg0) {
+			vp.gotoFrame(vp.getFrameNumber() - 1);
+		}
+	};
+	
+	private ActionListener stepListener = new ActionListener() {
+		@Override
+		public void actionPerformed(ActionEvent arg0) {
+			vp.stepGame();
 		}
 	};
 
-	private ActionListener stopListener = new ActionListener() {
+	private ActionListener resetListener = new ActionListener() {
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
-			setAnimating(false);
+			vp.resetGame();
 		}
 	};
 
 	public Visualiser(Container container, File defaultPath) {
 		this.container = container;
 		this.defaultPath = defaultPath;
+		this.gameRunner = new GameRunner();
 		createComponents();
+		setHasSetup(false);
 	}
 
 	public Visualiser(Container container) {
-		this.container = container;
+		this(container, null);
 		try {
 			this.defaultPath = new File(".").getCanonicalFile();
 		} catch (IOException e) {
-			this.defaultPath = null;
 		}
-		createComponents();
 	}
 
 	private void createComponents() {
-		vp = new VisualisationPanel(this);
+		vp = new VisualisationPanel(gameRunner, this);
 		JPanel wp = new JPanel(new BorderLayout());
 		wp.add(vp, BorderLayout.CENTER);
 		container.setLayout(new BorderLayout());
@@ -240,18 +285,17 @@ public class Visualiser {
 		container.add(wp, BorderLayout.CENTER);
 
 		infoPanel = new JPanel();
-		infoPanel.setLayout(new FlowLayout());
-
-		infoLabel = new JLabel("No problem to display.");
-		samplingSpinner = new JSpinner(new SpinnerNumberModel(
-				SAMPLING_PERIOD_INIT, 1, null, 1));
-		samplingSpinner.addChangeListener(samplingListener);
-		samplingSpinner.setPreferredSize(new Dimension(50, 20));
-		samplingSpinner.setVisible(false);
-		vp.setSamplingPeriod(SAMPLING_PERIOD_INIT);
-		infoPanel.add(infoLabel);
-		infoPanel.add(samplingSpinner);
-
+		infoPanel.setLayout(new BorderLayout());
+		infoLabel = new JLabel();
+		updateInfoText();
+		JPanel p = new JPanel();
+		p.add(infoLabel);
+		infoPanel.add(p, BorderLayout.CENTER);
+		scoreTable = new JTable(tableDataModel);
+		//JScrollPane scrollPane = new JScrollPane(scoreTable);
+		infoPanel.add(scoreTable, BorderLayout.EAST);
+		infoPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 5, 10));
+		
 		container.add(infoPanel, BorderLayout.NORTH);
 
 		createMenus();
@@ -261,8 +305,7 @@ public class Visualiser {
 	private void createMenus() {
 		menuBar = new JMenuBar();
 		createFileMenu();
-		createDisplayMenu();
-		createAnimationMenu();
+		createGameMenu();
 		if (container instanceof JFrame) {
 			((JFrame) container).setJMenuBar(menuBar);
 		} else if (container instanceof JApplet) {
@@ -277,16 +320,15 @@ public class Visualiser {
 				"Load configs or close the app.");
 		menuBar.add(fileMenu);
 
-		loadProblemItem = new JMenuItem("Load problem");
-		loadProblemItem.setMnemonic(KeyEvent.VK_P);
-		loadProblemItem.addActionListener(menuListener);
-		fileMenu.add(loadProblemItem);
+		loadSetupItem = new JMenuItem("Load setup");
+		loadSetupItem.setMnemonic(KeyEvent.VK_L);
+		loadSetupItem.addActionListener(menuListener);
+		fileMenu.add(loadSetupItem);
 
-		loadSolutionItem = new JMenuItem("Load solution");
-		loadSolutionItem.setMnemonic(KeyEvent.VK_S);
-		loadSolutionItem.addActionListener(menuListener);
-		loadSolutionItem.setEnabled(false);
-		fileMenu.add(loadSolutionItem);
+		writeOutputItem = new JMenuItem("Write output");
+		writeOutputItem.setMnemonic(KeyEvent.VK_W);
+		writeOutputItem.addActionListener(menuListener);
+		fileMenu.add(writeOutputItem);
 
 		fileMenu.addSeparator();
 		exitItem = new JMenuItem("Exit");
@@ -295,57 +337,48 @@ public class Visualiser {
 		fileMenu.add(exitItem);
 	}
 
-	private void createDisplayMenu() {
-		displayMenu = new JMenu("Display");
-		displayMenu.setMnemonic(KeyEvent.VK_D);
-		fileMenu.getAccessibleContext().setAccessibleDescription(
-				"Display the problem and solution.");
-		menuBar.add(displayMenu);
-
-		problemItem = new JMenuItem("Problem");
-		problemItem.setMnemonic(KeyEvent.VK_P);
-		problemItem.addActionListener(menuListener);
-		problemItem.setEnabled(false);
-		displayMenu.add(problemItem);
-
-		solutionItem = new JMenuItem("Solution");
-		solutionItem.setMnemonic(KeyEvent.VK_S);
-		solutionItem.addActionListener(menuListener);
-		solutionItem.setEnabled(false);
-		displayMenu.add(solutionItem);
-	}
-
-	private void createAnimationMenu() {
-		animationMenu = new JMenu("Animation");
-		animationMenu.setMnemonic(KeyEvent.VK_A);
+	private void createGameMenu() {
+		gameMenu = new JMenu("Game");
+		gameMenu.setMnemonic(KeyEvent.VK_A);
 		fileMenu.getAccessibleContext().setAccessibleDescription(
 				"Manage the animation.");
-		menuBar.add(animationMenu);
-		animationMenu.setEnabled(false);
-
-		initialiseItem = new JMenuItem("Initialise");
-		initialiseItem.setMnemonic(KeyEvent.VK_I);
-		initialiseItem.addActionListener(menuListener);
-		animationMenu.add(initialiseItem);
+		menuBar.add(gameMenu);
+		gameMenu.setEnabled(false);
+		
+		stepItem = new JMenuItem("Simulate one step");
+		stepItem.setMnemonic(KeyEvent.VK_S);
+		stepItem.addActionListener(menuListener);
+		gameMenu.add(stepItem);
 
 		playPauseItem = new JMenuItem("Play");
 		playPauseItem.setMnemonic(KeyEvent.VK_P);
 		playPauseItem.addActionListener(menuListener);
-		animationMenu.add(playPauseItem);
+		gameMenu.add(playPauseItem);
 
-		stopItem = new JMenuItem("Stop");
-		stopItem.setMnemonic(KeyEvent.VK_T);
-		stopItem.addActionListener(menuListener);
-		stopItem.setEnabled(false);
-		animationMenu.add(stopItem);
+		resetItem = new JMenuItem("Reset");
+		resetItem.setMnemonic(KeyEvent.VK_T);
+		resetItem.addActionListener(menuListener);
+		gameMenu.add(resetItem);
+		
+		backItem = new JMenuItem("Back one step");
+		backItem.setMnemonic(KeyEvent.VK_B);
+		backItem.addActionListener(menuListener);
+		backItem.setEnabled(false);
+		gameMenu.add(backItem);
+		
+		forwardItem = new JMenuItem("Forward one step");
+		forwardItem.setMnemonic(KeyEvent.VK_F);
+		forwardItem.addActionListener(menuListener);
+		forwardItem.setEnabled(false);
+		gameMenu.add(forwardItem);
 	}
 
 	private void createAnimationControls() {
 		Font sliderFont = new Font("Arial", Font.PLAIN, 12);
 
-		animationControls = new JPanel();
-		animationControls.setLayout(new BoxLayout(animationControls,
-				BoxLayout.PAGE_AXIS));
+		gameControls = new JPanel();
+		gameControls
+				.setLayout(new BoxLayout(gameControls, BoxLayout.PAGE_AXIS));
 
 		JLabel manualLabel = new JLabel("Frame #");
 		manualLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -358,47 +391,60 @@ public class Visualiser {
 		manualSlider.setMinorTickSpacing(1);
 		manualSlider.addComponentListener(resizeListener);
 
-		JLabel framerateLabel = new JLabel("Framerate");
-		framerateLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-		framerateSlider = new JSlider(JSlider.HORIZONTAL, FRAMERATE_MIN,
-				FRAMERATE_MAX, FRAMERATE_INIT);
-		framerateSlider.setMajorTickSpacing(10);
-		framerateSlider.setMinorTickSpacing(1);
-		framerateSlider.setPaintTicks(true);
-		framerateSlider.setPaintLabels(true);
-		framerateSlider.setLabelTable(framerateSlider.createStandardLabels(10,
-				10));
-		framerateSlider.setFont(sliderFont);
-		framerateSlider.addChangeListener(framerateListener);
-		JPanel frameratePanel = new JPanel();
-		frameratePanel.setLayout(new BoxLayout(frameratePanel,
+		JLabel framePeriodLabel = new JLabel("Frame period (ms)");
+		framePeriodLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+		framePeriodSlider = new JSlider(JSlider.HORIZONTAL, FRAME_PERIOD_MIN,
+				FRAME_PERIOD_MAX, FRAME_PERIOD_INIT);
+		framePeriodSlider.setMajorTickSpacing(200);
+		framePeriodSlider.setMinorTickSpacing(10);
+		framePeriodSlider.setPaintTicks(true);
+		framePeriodSlider.setPaintLabels(true);
+		framePeriodSlider.setLabelTable(framePeriodSlider.createStandardLabels(
+				200, 200));
+		framePeriodSlider.setFont(sliderFont);
+		framePeriodSlider.addChangeListener(framePeriodListener);
+		JPanel framePeriodPanel = new JPanel();
+		framePeriodPanel.setLayout(new BoxLayout(framePeriodPanel,
 				BoxLayout.PAGE_AXIS));
-		frameratePanel.add(framerateLabel);
-		frameratePanel.add(Box.createRigidArea(new Dimension(0, 2)));
-		frameratePanel.add(framerateSlider);
+		framePeriodPanel.add(framePeriodLabel);
+		framePeriodPanel.add(Box.createRigidArea(new Dimension(0, 2)));
+		framePeriodPanel.add(framePeriodSlider);
+		vp.setPeriod(framePeriodSlider.getValue());
 
+		stepButton = new JButton(stepIcon);
+		stepButton.addActionListener(stepListener);
+		backButton = new JButton(backIcon);
+		backButton.addActionListener(backListener);
+		backButton.setEnabled(false);
+		forwardButton = new JButton(forwardIcon);
+		forwardButton.addActionListener(forwardListener);
+		forwardButton.setEnabled(false);
 		playPauseButton = new JButton(playIcon);
 		playPauseButton.addActionListener(playPauseListener);
-		stopButton = new JButton(stopIcon);
-		stopButton.addActionListener(stopListener);
+		resetButton = new JButton(resetIcon);
+		resetButton.addActionListener(resetListener);
 
-		animationControls.add(new JSeparator(JSeparator.HORIZONTAL));
-		animationControls.add(Box.createRigidArea(new Dimension(0, 2)));
-		animationControls.add(manualLabel);
-		animationControls.add(Box.createRigidArea(new Dimension(0, 2)));
-		animationControls.add(manualSlider);
-		animationControls.add(Box.createRigidArea(new Dimension(0, 5)));
+		gameControls.add(new JSeparator(JSeparator.HORIZONTAL));
+		gameControls.add(Box.createRigidArea(new Dimension(0, 2)));
+		gameControls.add(manualLabel);
+		gameControls.add(Box.createRigidArea(new Dimension(0, 2)));
+		gameControls.add(manualSlider);
+		gameControls.add(Box.createRigidArea(new Dimension(0, 5)));
 		JPanel p2 = new JPanel();
 		p2.setLayout(new BoxLayout(p2, BoxLayout.LINE_AXIS));
+		p2.add(backButton);
+		p2.add(Box.createRigidArea(new Dimension(5, 0)));
+		p2.add(forwardButton);
+		p2.add(Box.createRigidArea(new Dimension(5, 0)));
+		p2.add(stepButton);
+		p2.add(Box.createRigidArea(new Dimension(5, 0)));
 		p2.add(playPauseButton);
-		p2.add(Box.createRigidArea(new Dimension(10, 0)));
-		p2.add(stopButton);
-		p2.add(frameratePanel);
-		animationControls.add(p2);
-		animationControls.setVisible(false);
-		animationControls.setBorder(BorderFactory.createEmptyBorder(0, 10, 5,
-				10));
-		container.add(animationControls, BorderLayout.SOUTH);
+		p2.add(Box.createRigidArea(new Dimension(5, 0)));
+		p2.add(resetButton);
+		p2.add(framePeriodPanel);
+		gameControls.add(p2);
+		gameControls.setBorder(BorderFactory.createEmptyBorder(0, 10, 5, 10));
+		container.add(gameControls, BorderLayout.SOUTH);
 	}
 
 	private File askForFile() {
@@ -416,110 +462,51 @@ public class Visualiser {
 				JOptionPane.ERROR_MESSAGE);
 	}
 
-	private void loadProblem(File f) {
+	private void loadSetup(File f) {
 		try {
-			vp.getProblemSetup().loadProblem(f.getPath());
-			setHasProblem(true);
-		} catch (IOException e1) {
+			gameRunner.loadSetup(f.getPath());
+			setHasSetup(true);
+		} catch (IOException e) {
+			JOptionPane.showMessageDialog(container, e.getMessage(), "", JOptionPane.ERROR_MESSAGE);
 			showFileError(f);
-			setHasProblem(false);
 		}
 	}
 
-	private void loadProblem() {
+	private void loadSetup() {
 		File f = askForFile();
 		if (f == null) {
 			return;
 		}
-		loadProblem(f);
+		loadSetup(f);
 	}
 
-	private void loadSolution(File f) {
+	private void writeOutput(File f) {
 		try {
-			vp.getProblemSetup().loadSolution(f.getPath());
-			setHasSolution(true);
-		} catch (IOException e1) {
+			gameRunner.writeResults(f.getPath());
+		} catch (IOException e) {
 			showFileError(f);
-			setHasSolution(false);
 		}
 	}
 
-	private void loadSolution() {
+	private void writeOutput() {
 		File f = askForFile();
 		if (f == null) {
 			return;
 		}
-		loadSolution(f);
+		writeOutput(f);
 	}
 
-	private void playPause() {
-		if (!animating) {
-			setAnimating(true);
+	public void setHasSetup(boolean hasSetup) {
+		this.hasSetup = hasSetup;
+		if (hasSetup) {
+			vp.resetGame();
 		}
-		vp.playPauseAnimation();
-	}
-
-	private void setInfoText() {
-		if (!hasProblem) {
-			infoLabel.setText("No problem to display.");
-			samplingSpinner.setVisible(false);
-		} else if (animating) {
-			infoLabel
-					.setText("Play the animation, or use the slider to control it manually.");
-			samplingSpinner.setVisible(false);
-		} else if (vp.isDisplayingSolution()) {
-			infoLabel.setText("Displaying the solution; sampling period:");
-			samplingSpinner.setVisible(true);
-		} else {
-			infoLabel
-					.setText("Displaying the problem: blue = initial, green = goal, red = obstacle. ASV-1 is circled.");
-			samplingSpinner.setVisible(false);
-		}
-	}
-
-	private void setHasProblem(boolean hasProblem) {
-		this.hasProblem = hasProblem;
-		loadSolutionItem.setEnabled(hasProblem);
-		problemItem.setEnabled(hasProblem);
-		setHasSolution(false);
-		setInfoText();
+		tableDataModel.fireTableStructureChanged();
+		updateControls();
+		gameControls.setVisible(hasSetup);
+		gameMenu.setEnabled(hasSetup);
+		writeOutputItem.setEnabled(hasSetup);
 		vp.repaint();
-	}
-
-	public boolean hasProblem() {
-		return hasProblem;
-	}
-
-	private void setHasSolution(boolean hasSolution) {
-		this.hasSolution = hasSolution;
-		solutionItem.setEnabled(hasSolution);
-		animationMenu.setEnabled(hasSolution);
-		vp.setDisplayingSolution(hasSolution);
-		setAnimating(hasSolution);
-		setInfoText();
-		vp.repaint();
-	}
-
-	public boolean hasSolution() {
-		return hasSolution;
-	}
-
-	private void setAnimating(boolean animating) {
-		if (animating) {
-			vp.initAnimation();
-		} else {
-			vp.stopAnimation();
-		}
-		if (this.animating == animating) {
-			return;
-		}
-		this.animating = animating;
-		stopItem.setEnabled(animating);
-		animationControls.setVisible(animating);
-		container.validate();
-		vp.calculateTransform();
-		vp.repaint();
-		setInfoText();
 	}
 
 	public void setPlaying(boolean playing) {
@@ -535,12 +522,40 @@ public class Visualiser {
 			playPauseButton.setIcon(playIcon);
 		}
 		playPauseButton.repaint();
+		
+	}
+	
+	public void updateControls() {
+		if (!hasSetup) {
+			return;
+		}
+		boolean canBack = vp.getFrameNumber() > 0;
+		backButton.setEnabled(canBack);
+		backItem.setEnabled(canBack);
+		
+		boolean canForward = vp.getFrameNumber() < gameRunner.getTurnNo();
+		forwardButton.setEnabled(canForward);
+		forwardItem.setEnabled(canForward);
+	}
+
+	public void updateInfoText() {
+		if (!gameRunner.setupLoaded()) {
+			infoLabel.setText("No problem to display.");
+		} else if (vp.getCurrentState().isGameComplete()) {
+			infoLabel.setText("Game complete!");
+		} else if (vp.getCurrentState().getCurrentPlayer() == 0) {
+			infoLabel.setText("Tracker to act.");
+		} else {
+			int player = vp.getCurrentState().getCurrentPlayer();
+			infoLabel.setText("Target #" + player + " to act.");
+		}
 	}
 
 	public void updateMaximum() {
-		int maximum = vp.getProblemSetup().getPath().size() - 1;
+		int maximum = gameRunner.getTurnNo();
 		manualSlider.setMaximum(maximum);
 		updateTickSpacing();
+		updateControls();
 	}
 
 	public void updateSliderSpacing(JSlider slider) {
@@ -577,23 +592,21 @@ public class Visualiser {
 
 	public void updateTickSpacing() {
 		updateSliderSpacing(manualSlider);
-		updateSliderSpacing(framerateSlider);
+		updateSliderSpacing(framePeriodSlider);
 	}
 
 	public void setFrameNumber(int frameNumber) {
 		manualSlider.setValue(frameNumber);
+		updateControls();
 	}
 
 	public static void main(String[] args) {
 		JFrame frame = new JFrame("Assignment 1 visualiser");
 		Visualiser vis = new Visualiser(frame);
 		if (args.length > 0) {
-			vis.loadProblem(new File(args[0]));
-			if (vis.hasProblem() && args.length >= 2) {
-				vis.loadSolution(new File(args[1]));
-			}
+			vis.loadSetup(new File(args[0]));
 		}
-		frame.setSize(700, 766);
+		frame.setSize(800, 1000);
 		frame.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent e) {
 				System.exit(0);

@@ -13,6 +13,7 @@ import java.util.List;
 import target.TargetMotionHistory;
 import target.TargetPolicy;
 
+@SuppressWarnings("unused")
 public class Tracker implements Agent {
 	private int numTargets;
 	private TargetPolicy targetPolicy;

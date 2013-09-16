@@ -19,6 +19,12 @@ public class AgentState {
 	/** The camera arm length, if applicable. */
 	private double cameraArmLength = 0;
 	
+	/**
+	 * Crates a state from a String representation, as found in
+	 * input files.
+	 * @param hasCamera whether the agent has a camera.
+	 * @param line the String representation of the state.
+	 */
 	public AgentState(boolean hasCamera, String line) {
 		this.hasCamera = hasCamera;
 		Scanner s = new Scanner(line);

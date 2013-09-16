@@ -2,8 +2,9 @@ package target;
 
 import game.Action;
 import game.AgentState;
+import geom.Grid;
+import geom.Grid.GridCell;
 
-import java.awt.geom.Point2D;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -14,48 +15,16 @@ import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 public class TargetPolicy {
-	private class CellIndex {
-		private int row;
-		private int col;
-		
-		private CellIndex(int row, int col) {
-			this.row = row;
-			this.col = col;
-		}
-		
-		public int getRow() {
-			return row;
-		}
-		
-		public int getCol() {
-			return col;
-		}
-		
-		@Override
-		public boolean equals(Object o) {
-			if (!(o instanceof CellIndex)) {
-				return false;
-			}
-			CellIndex other = (CellIndex)o;
-			return this.row == other.row && this.col == other.col;
-		}
-		
-		@Override
-		public int hashCode() {
-			return row * 3571 + col;
-		}
-	}
-	
-	private int gridSize;
-	private Map<CellIndex, CellIndex> policyMap;
+	private Grid grid;
+	private Map<Grid.GridCell, Grid.GridCell> policyMap;
 	
 	public TargetPolicy(TargetPolicy policy) {
-		this.gridSize = policy.gridSize;
-		this.policyMap = new HashMap<CellIndex, CellIndex>(policy.policyMap);
+		this.grid = new Grid(policy.grid.getGridSize());
+		this.policyMap = new HashMap<Grid.GridCell, Grid.GridCell>(policy.policyMap);
 	}
 	
 	public TargetPolicy(String path) throws IOException {
-		policyMap = new HashMap<CellIndex, CellIndex>();
+		policyMap = new HashMap<Grid.GridCell, Grid.GridCell>();
 		
 		BufferedReader input = new BufferedReader(new FileReader(path));
 		int lineNo = 0;
@@ -71,16 +40,17 @@ public class TargetPolicy {
 			if (numRows != numCols) {
 				throw new IOException("Number of rows must equal number of columns.");
 			}
-			gridSize = numRows;
+			int gridSize = numRows;
+			grid = new Grid(gridSize);
 			
 			for (int i = 0; i < gridSize; i++) {
 				line = input.readLine();
 				lineNo++;
 				s = new Scanner(line);
 				for (int j = 0; j < gridSize; j++) {
-					CellIndex current = new CellIndex(i, j);
+					GridCell current = grid.new GridCell(i, j);
 					int actionCode = s.nextInt();
-					CellIndex target = decodeAction(current, actionCode);
+					GridCell target = grid.decodeAction(current, actionCode);
 					policyMap.put(current, target);
 				}
 				s.close();
@@ -100,53 +70,24 @@ public class TargetPolicy {
 		}
 	}
 	
+	public Grid getGrid() {
+		return grid;
+	}
+	
 	public int getGridSize() {
-		return gridSize;
+		return grid.getGridSize();
 	}
 	
-	public Map<CellIndex, CellIndex> getPolicyMap() {
-		return new HashMap<CellIndex, CellIndex>(policyMap);
-	}
-	
-	public int encodeAction(CellIndex start, CellIndex end) {
-		int rowDelta = end.getRow() - start.getRow();
-		int colDelta = end.getCol() - start.getCol();
-		return rowDelta * 3 + colDelta + 4;
-	}
-	
-	public CellIndex decodeAction(CellIndex start, int actionCode) {
-		return new CellIndex(
-				start.getRow() + actionCode / 3 - 1,
-				start.getCol() + actionCode % 3 - 1);
-	}
-	
-	public int get1DIndex(double coord) {
-		int index = (int)(coord*gridSize);
-		if (index < 0) {
-			index = 0;
-		}
-		if (index >= gridSize) {
-			index = gridSize - 1;
-		}
-		return index;
-	}
-
-	public double get1DCentreCoord(int index) {
-		return (0.5 + index) / gridSize;
+	public GridCell getNextIndex(GridCell index) {
+		return policyMap.get(index);
 	}
 	
 	public Action getAction(AgentState currentState) {
-		Point2D position = currentState.getPosition();
-		CellIndex startIndex = new CellIndex(
-				get1DIndex(position.getX()), get1DIndex(position.getY()));
-		CellIndex endIndex = policyMap.get(startIndex);
+		GridCell startIndex = grid.getIndex(currentState.getPosition());
+		GridCell endIndex = policyMap.get(startIndex);
 		if (endIndex.equals(startIndex)) {
 			return new Action(currentState);
 		}
-		
-		Point2D endPosition = new Point2D.Double(
-				get1DCentreCoord(endIndex.getRow()),
-				get1DCentreCoord(endIndex.getCol()));
-		return new Action(currentState, endPosition);
+		return new Action(currentState, grid.getCentre(endIndex));
 	}
 }

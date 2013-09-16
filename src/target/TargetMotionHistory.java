@@ -1,6 +1,7 @@
 package target;
 
 public class TargetMotionHistory {
-	public TargetMotionHistory(String path) {	
+	// TODO Implement target motion history.
+	public TargetMotionHistory(String path) {
 	}
 }

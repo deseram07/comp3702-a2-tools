@@ -1,10 +1,14 @@
 package game;
 
+import geom.Vector2D;
+
 import java.awt.geom.Point2D;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.InputMismatchException;
@@ -27,6 +31,8 @@ import tracker.TrackerMotionHistory;
  */
 public class GameRunner {
 	private double MAX_DISTANCE_ERROR = 1e-5;
+
+	/* ------------------------ SETUP PARAMETERS -------------------------- */
 
 	/** True iff a game setup is currently loaded */
 	private boolean setupLoaded = false;
@@ -70,8 +76,8 @@ public class GameRunner {
 	 *             specifications.
 	 */
 	public void loadSetup(String filename) throws IOException {
+		Path baseFolder = Paths.get(filename).toAbsolutePath().getParent();
 		setupLoaded = false;
-		gameComplete = false;
 		BufferedReader input = new BufferedReader(new FileReader(filename));
 		String line;
 		int lineNo = 0;
@@ -92,10 +98,12 @@ public class GameRunner {
 			line = input.readLine();
 			lineNo++;
 			s = new Scanner(line);
-			targetPolicy = new TargetPolicy(s.next());
+			String path = baseFolder.resolve(s.next()).toString();
+			targetPolicy = new TargetPolicy(path);
 			maxMovementDistance = Math.sqrt(2) / targetPolicy.getGridSize();
 			if (hasTargetHistory) {
-				targetMotionHistory = new TargetMotionHistory(s.next());
+				path = baseFolder.resolve(s.next()).toString();
+				targetMotionHistory = new TargetMotionHistory(path);
 			}
 			s.close();
 
@@ -113,7 +121,8 @@ public class GameRunner {
 			lineNo++;
 			if (hasTrackerHistory) {
 				s = new Scanner(line);
-				trackerMotionHistory = new TrackerMotionHistory(s.next());
+				path = baseFolder.resolve(s.next()).toString();
+				trackerMotionHistory = new TrackerMotionHistory(path);
 				s.close();
 			}
 
@@ -156,6 +165,9 @@ public class GameRunner {
 			}
 
 			setupLoaded = true;
+			actionResultSequence = null;
+			stateSequence = null;
+			cs = null;
 		} catch (InputMismatchException e) {
 			throw new IOException(String.format(
 					"Invalid number format on line %d: %s", lineNo,
@@ -180,104 +192,368 @@ public class GameRunner {
 		return setupLoaded;
 	}
 
-	/* Parameters and methods for running the game. */
+	/**
+	 * Returns the number of targets.
+	 * 
+	 * @return the number of targets.
+	 */
+	public int getNumTargets() {
+		return numTargets;
+	}
+
+	/**
+	 * Returns the policy of the target.
+	 * 
+	 * @return the policy of the target.
+	 */
+	public TargetPolicy getTargetPolicy() {
+		return targetPolicy;
+	}
+
+	/**
+	 * Returns the motion history of the target(s), or null if no motion history
+	 * is available.
+	 * 
+	 * @return the motion history of the target(s), or null if no motion history
+	 *         is available.
+	 */
+	public TargetMotionHistory getTargetMotionHistory() {
+		return targetMotionHistory;
+	}
+
+	/**
+	 * Returns the sensing parameters of the target.
+	 * 
+	 * @return the sensing parameters of the target.
+	 */
+	public SensingParameters getTargetSensingParams() {
+		return targetSensingParams;
+	}
+
+	/**
+	 * Returns the initial state(s) of the target(s).
+	 * 
+	 * @return the initial state(s) of the target(s).
+	 */
+	public List<AgentState> getTargetInitialStates() {
+		return targetInitialStates;
+	}
+
+	/**
+	 * Returns the motion history of the tracker, or null if no motion history
+	 * is available.
+	 * 
+	 * @return the motion history of the tracker, or null if no motion history
+	 *         is available.
+	 */
+	public TrackerMotionHistory getTrackerMotionHistory() {
+		return trackerMotionHistory;
+	}
+
+	/**
+	 * Returns the sensing parameters of the tracker.
+	 * 
+	 * @return the sensing parameters of the tracker.
+	 */
+	public SensingParameters getTrackerSensingParams() {
+		return trackerSensingParams;
+	}
+
+	/**
+	 * Returns the initial state of the tracker.
+	 * 
+	 * @return the initial state of the tracker.
+	 */
+	public AgentState getTrackerInitialState() {
+		return trackerInitialState;
+	}
+
+	/**
+	 * Returns the list of obstacles.
+	 * 
+	 * @return the list of obstacles.
+	 */
+	public List<RectRegion> getObstacles() {
+		return obstacles;
+	}
+
+	/**
+	 * Returns the goal region.
+	 * 
+	 * @return the goal region.
+	 */
+	public RectRegion getGoalRegion() {
+		return goalRegion;
+	}
+
+	/**
+	 * Returns the maximum distance an agent can move in one step.
+	 * 
+	 * @return the maximum distance an agent can move in one step.
+	 */
+	public double getMaxMovementDistance() {
+		return maxMovementDistance;
+	}
+
+	/* ------------------------ RUNNING THE GAME -------------------------- */
+
+	public class GameState {
+		/** True iff the game is already over in this state. */
+		private boolean gameComplete = false;
+		/** The turn number of this game. */
+		private int turnNo;
+		/** The player whose turn it is to act. */
+		private int currentPlayer;
+
+		/** The players in the game. */
+		private Agent[] players;
+		/** The scores of the players. */
+		private double[] playerScores;
+		/** The states of the players. */
+		private AgentState[] playerStates;
+		/** Whether each player has reached the goal. */
+		private boolean[] goalReached;
+
+		/** The percepts acquired since the last tracker turn. */
+		List<Percept> trackerPercepts;
+
+		/** 
+		 * Constructs a game state representing the initial
+		 * state of the game (i.e. just before the 0-th action).
+		 */
+		public GameState() {
+			turnNo = 0;
+			currentPlayer = 0;
+			trackerPercepts = new ArrayList<Percept>();
+
+			players = new Agent[numTargets + 1];
+			playerScores = new double[numTargets + 1];
+			playerStates = new AgentState[numTargets + 1];
+			goalReached = new boolean[numTargets + 1];
+			for (int i = 1; i <= numTargets; i++) {
+				players[i] = new TargetWithError(targetPolicy);
+				playerScores[i] = 0;
+				playerStates[i] = targetInitialStates.get(i - 1);
+				goalReached[i] = isWithinGoal(playerStates[i]);
+			}
+			playerScores[0] = 0;
+			playerStates[0] = trackerInitialState;
+			goalReached[0] = false;
+
+			List<AgentState> targetInitialStatesCopy = new ArrayList<AgentState>();
+			for (AgentState as : targetInitialStates) {
+				targetInitialStatesCopy.add(new AgentState(as));
+			}
+			List<RectRegion> obstaclesCopy = new ArrayList<RectRegion>();
+			for (RectRegion obstacle : obstacles) {
+				obstaclesCopy.add(new RectRegion(obstacle));
+			}
+			players[0] = new Tracker(numTargets,
+					new TargetPolicy(targetPolicy), targetMotionHistory,
+					new SensingParameters(targetSensingParams),
+					targetInitialStatesCopy,
+
+					trackerMotionHistory, new SensingParameters(
+							trackerSensingParams), new AgentState(
+							trackerInitialState),
+
+					obstaclesCopy, new RectRegion(goalRegion));
+		}
+
+		/**
+		 * Duplicates another game state.
+		 * @param other the state to duplicate.
+		 */
+		public GameState(GameState other) {
+			this.gameComplete = other.gameComplete;
+			this.turnNo = other.turnNo;
+			this.currentPlayer = other.currentPlayer;
+
+			this.players = other.players;
+			this.playerScores = Arrays.copyOf(other.playerScores,
+					numTargets + 1);
+			this.playerStates = Arrays.copyOf(other.playerStates,
+					numTargets + 1);
+			this.goalReached = Arrays.copyOf(other.goalReached, numTargets + 1);
+
+			this.trackerPercepts = new ArrayList<Percept>(other.trackerPercepts);
+		}
+
+		/**
+		 * Returns whether this state represents a completed game.
+		 * @return whether this state represents a completed game.
+		 */
+		public boolean isGameComplete() {
+			return gameComplete;
+		}
+
+		/**
+		 * Returns the turn number of this game.
+		 * @return the turn number of this game.
+		 */
+		public int getTurnNo() {
+			return turnNo;
+		}
+
+		/**
+		 * Returns the number of the player to act.
+		 * @return the number of the player to act.
+		 */
+		public int getCurrentPlayer() {
+			return currentPlayer;
+		}
+
+		/**
+		 * Returns the scores of the players.
+		 * @return the scores of the players.
+		 */
+		public double[] getPlayerScores() {
+			return Arrays.copyOf(playerScores, numTargets + 1);
+		}
+
+		/**
+		 * Returns the states of the players.
+		 * @return the states of the players.
+		 */
+		public AgentState[] getPlayerStates() {
+			return Arrays.copyOf(playerStates, numTargets + 1);
+		}
+	}
+
+	/** The sequence of attempted actions with associated results */
+	private List<ActionResult> actionResultSequence;
+	/** The sequence of states of the game. */
+	private List<GameState> stateSequence;
+	/** The current state of the game. */
+	private GameState cs = null;
 
 	/** The line separator to use when writing to the output file. */
 	private static String lineSep = System.getProperty("line.separator");
 
-	private boolean gameComplete = false;
-	private int turnNo;
-	private int currentPlayer;
-	private double[] playerScores;
-	private Agent[] agents;
-	private AgentState[] agentStates;
-
-	List<Percept> percepts;
-	private List<ActionResult> actionResults;
-
-	private boolean gameComplete() {
-		return gameComplete;
+	/** Returns true iff a game is active and complete. */
+	public boolean gameComplete() {
+		return cs != null && cs.gameComplete;
 	}
 
-	private void initialise() {
-		turnNo = 0;
-		currentPlayer = 0;
-		actionResults = new ArrayList<ActionResult>();
-		percepts = new ArrayList<Percept>();
-
-		playerScores = new double[numTargets + 1];
-		agents = new Agent[numTargets + 1];
-		agentStates = new AgentState[numTargets + 1];
-		for (int i = 1; i <= numTargets; i++) {
-			playerScores[i] = 0;
-			agentStates[i] = targetInitialStates.get(i - 1);
-			agents[i] = new TargetWithError(targetPolicy);
-		}
-		playerScores[0] = 0;
-		agentStates[0] = trackerInitialState;
-
-		List<AgentState> targetInitialStatesCopy = new ArrayList<AgentState>();
-		for (AgentState as : targetInitialStates) {
-			targetInitialStatesCopy.add(new AgentState(as));
-		}
-		List<RectRegion> obstaclesCopy = new ArrayList<RectRegion>();
-		for (RectRegion obstacle : obstacles) {
-			obstaclesCopy.add(new RectRegion(obstacle));
-		}
-		agents[0] = new Tracker(
-				numTargets,
-				new TargetPolicy(targetPolicy),
-				targetMotionHistory,
-				new SensingParameters(targetSensingParams),
-				targetInitialStatesCopy,
-
-				trackerMotionHistory,
-				new SensingParameters(trackerSensingParams), 
-				new AgentState(trackerInitialState),
-
-				obstaclesCopy, 
-				new RectRegion(goalRegion));
+	/**
+	 * Returns the sequence of actions with associated results.
+	 * @return the sequence of actions with associated results.
+	 */
+	public List<ActionResult> getActionResults() {
+		return actionResultSequence;
 	}
 
-	private void doStep() {
-		int previousTurn = turnNo - numTargets - 1;
+	/**
+	 * Returns the sequence of game states.
+	 * @return the sequence of game states.
+	 */
+	public List<GameState> getStateSequence() {
+		return stateSequence;
+	}
+
+	/**
+	 * Returns the current turn number.
+	 * @return the current turn number.
+	 */
+	public int getTurnNo() {
+		return cs.turnNo;
+	}
+
+	/**
+	 * Reinitialises the game (i.e. goes to turn 0).
+	 */
+	public void initialise() {
+		cs = new GameState();
+		actionResultSequence = new ArrayList<ActionResult>();
+		stateSequence = new ArrayList<GameState>();
+		stateSequence.add(cs);
+	}
+
+	public void gotoStep(int stepNo) {
+		if (stepNo == cs.turnNo) {
+			return;
+		}
+
+		if (stepNo > cs.turnNo) {
+			while (cs.turnNo < stepNo) {
+				doStep();
+			}
+			return;
+		}
+
+		while (cs.turnNo > stepNo) {
+			stateSequence.remove(cs.turnNo);
+			cs.turnNo -= 1;
+			actionResultSequence.remove(cs.turnNo);
+		}
+	}
+
+	public void doStep() {
+		cs = new GameState(cs);
+		int previousTurn = cs.turnNo - numTargets - 1;
 		ActionResult previousResult;
 		if (previousTurn >= 0) {
-			previousResult = actionResults.get(previousTurn);
+			previousResult = actionResultSequence.get(previousTurn);
 		} else {
 			previousResult = new ActionResult(null, new AgentState(
-					agentStates[currentPlayer]), 0);
+					cs.playerStates[cs.currentPlayer]), 0);
 		}
-		double[] scores = Arrays.copyOf(playerScores, numTargets + 1);
+		double[] scores = Arrays.copyOf(cs.playerScores, numTargets + 1);
 		Action action;
-		if (currentPlayer == 0) {
-			action = agents[0].getAction(turnNo, previousResult, scores,
-					new ArrayList<Percept>(percepts));
-			percepts.clear();
+		if (cs.currentPlayer == 0) {
+			action = cs.players[0].getAction(cs.turnNo, previousResult, scores,
+					new ArrayList<Percept>(cs.trackerPercepts));
+			cs.trackerPercepts.clear();
 		} else {
-			action = agents[currentPlayer].getAction(turnNo, previousResult,
-					scores, null);
+			if (cs.goalReached[cs.currentPlayer]) {
+				action = null;
+			} else {
+				action = cs.players[cs.currentPlayer].getAction(cs.turnNo,
+						previousResult, scores, null);
+			}
 		}
 
-		ActionResult result = doAction(turnNo, currentPlayer, action);
-		scores[currentPlayer] += result.getReward();
-		actionResults.add(result);
+		ActionResult result;
+		if (action != null) {
+			result = doAction(cs.turnNo, cs.currentPlayer, action);
+			scores[cs.currentPlayer] += result.getReward();
+		} else {
+			result = new ActionResult(null, previousResult.getNewState(), 0);
+		}
+		actionResultSequence.add(result);
 
-		turnNo += 1;
-		currentPlayer = (currentPlayer + 1) % (numTargets + 1);
+		if (isWithinGoal(cs.playerStates[cs.currentPlayer])) {
+			cs.goalReached[cs.currentPlayer] = true;
+		}
+		boolean allInGoal = true;
+		for (int i = 1; i <= numTargets; i++) {
+			if (!cs.goalReached[i]) {
+				allInGoal = false;
+			}
+		}
+		if (allInGoal) {
+			cs.gameComplete = true;
+		}
+
+		cs.turnNo += 1;
+		cs.currentPlayer = (cs.currentPlayer + 1) % (numTargets + 1);
+		stateSequence.add(cs);
 	}
 
-	private ActionResult doAction(int turnNo, int playerNo, Action action) {
+	public ActionResult doAction(int turnNo, int playerNo, Action action) {
 		ActionResult result = doMovement(turnNo, playerNo, action);
 		AgentState newState = result.getNewState();
 		double reward = result.getReward();
 
 		if (playerNo == 0) {
 			for (int otherNo = 1; otherNo <= numTargets; otherNo++) {
+				if (cs.goalReached[otherNo]) {
+					continue;
+				}
 				if (action.isCallingHQ() || canSee(playerNo, otherNo)) {
 					reward += 1;
-					percepts.add(new Percept(turnNo, otherNo, new AgentState(
-							agentStates[otherNo])));
+					cs.trackerPercepts.add(new Percept(turnNo, otherNo,
+							new AgentState(cs.playerStates[otherNo])));
 				}
 			}
 		} else {
@@ -285,20 +561,20 @@ public class GameRunner {
 				reward += 1;
 			}
 			if (canSee(0, playerNo)) {
-				percepts.add(new Percept(turnNo, playerNo, new AgentState(
-						agentStates[playerNo])));
+				cs.trackerPercepts.add(new Percept(turnNo, playerNo,
+						new AgentState(cs.playerStates[playerNo])));
 			}
 		}
 		return new ActionResult(action, newState, reward);
 	}
 
-	private ActionResult doMovement(int turnNo, int playerNo, Action action) {
+	public ActionResult doMovement(int turnNo, int playerNo, Action action) {
 		AgentState startState = action.getStartState();
 		if (action.isCallingHQ()) {
 			return new ActionResult(action, startState, -5);
 		}
 
-		if (!startState.equals(agentStates[playerNo])) {
+		if (!startState.equals(cs.playerStates[playerNo])) {
 			return new ActionResult(action, startState, 0);
 		}
 
@@ -308,9 +584,7 @@ public class GameRunner {
 		double distance = action.getDistance();
 		if (distance > maxMovementDistance + MAX_DISTANCE_ERROR) {
 			distance = maxMovementDistance;
-			Point2D endPos = new Point2D.Double(startPos.getX() + distance
-					* Math.cos(heading), startPos.getY() + distance
-					* Math.sin(heading));
+			Point2D endPos = new Vector2D(distance, heading).addedTo(startPos);
 			endState = new AgentState(endPos, heading, startState.hasCamera(),
 					action.getNewCameraArmLength());
 		}
@@ -320,39 +594,50 @@ public class GameRunner {
 					startState.hasCamera(), action.getNewCameraArmLength());
 
 		}
+		cs.playerStates[playerNo] = endState;
 		return new ActionResult(action, endState, 0);
 	}
 
-	private boolean canMove(AgentState startState, AgentState endState) {
+	public boolean canMove(AgentState startState, AgentState endState) {
+		// TODO Implement the movement test.
 		return true;
 	}
 
-	private boolean canSee(int observerNo, int observedNo) {
+	public boolean canSee(int observerNo, int observedNo) {
+		// TODO Implement the vision test.
 		return false;
 	}
 
-	private void writeResults(String outputPath) throws IOException {
+	public boolean isWithinGoal(AgentState s) {
+		return goalRegion.getRect().contains(s.getPosition());
+	}
+
+	public void writeResults(String outputPath) throws IOException {
 		FileWriter writer = new FileWriter(outputPath);
-		writer.write(actionResults.size() + lineSep);
+		writer.write(actionResultSequence.size() + lineSep);
 		writer.write(trackerInitialState + lineSep);
 		for (AgentState as : targetInitialStates) {
 			writer.write(as + lineSep);
 		}
-		for (ActionResult result : actionResults) {
-			writer.write(result.getNewState() + " " + result.getReward()
-					+ lineSep);
+		for (ActionResult result : actionResultSequence) {
+			if (result.getAction() == null) {
+				writer.write("-" + lineSep);
+			} else {
+				writer.write(result.getNewState() + " " + result.getReward()
+						+ lineSep);
+			}
 		}
 		writer.close();
 	}
 
-	private void runFull() {
+	public void runFull() {
 		initialise();
-		while (!gameComplete) {
+		while (!gameComplete()) {
 			doStep();
 		}
 	}
 
-	/* Parameters and methods used when run from the command line. */
+	/* ---------------------- COMMAND LINE RUNNER ------------------------ */
 
 	/** The default file to load the game setup from. */
 	private static final String DEFAULT_SETUP_FILE = "setup.txt";
@@ -392,14 +677,33 @@ public class GameRunner {
 
 		runner.initialise();
 		runner.runFull();
+		double[] scores = runner.cs.playerScores;
+		double trackerScore = scores[0];
 		System.out.println("Final Scores:");
-		System.out.println("Tracker: " + (int) runner.playerScores[0]);
-		System.out.println("Target(s):");
+		System.out.println("Tracker: " + (int)trackerScore);
+		System.out.print("Target(s): ");
 		StringBuilder sb = new StringBuilder();
-		for (int i = 1; i < runner.numTargets; i++) {
-			sb.append(String.format("%4d ", runner.playerScores[i]));
+		int winValue = 1;
+		for (int i = 1; i <= runner.numTargets; i++) {
+			double score = scores[i];
+			sb.append(String.format("%d ", (int)score));
+			if (score > trackerScore) {
+				winValue = -1;
+			} else if (score == trackerScore) {
+				if (winValue == 1) {
+					winValue = 0;
+				}
+			}
 		}
 		System.out.println(sb);
+		System.out.println();
+		if (winValue == 1) {
+			System.out.println("Tracker wins!");
+		} else if (winValue == 0) {
+			System.out.println("Tracker ties!");
+		} else {
+			System.out.println("Tracker loses!");
+		}
 		try {
 			runner.writeResults(outputFile);
 		} catch (IOException e) {

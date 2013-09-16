@@ -1,8 +1,9 @@
-A visualiser and tester for COMP3702 Assignment 1, by Dimitri Klimenko (tutor).
+A framework for COMP3702 Assignment 2, by Dimitri Klimenko (tutor).
 
 
 (1) Commands and arguments
 The runnable files and their arguments are:
+	game.GameRunner [input-file] [output-file]
     tester.Tester [-e maxError] [-v] problem-file [solution-file]
     visualiser.Visualiser [problem-file] [solution-file]
 

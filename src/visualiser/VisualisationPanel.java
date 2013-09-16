@@ -1,118 +1,136 @@
 package visualiser;
 
-import game.ASVConfig;
-import game.RectRegion;
+import game.AgentState;
 import game.GameRunner;
+import game.RectRegion;
+import game.SensingParameters;
+import geom.Vector2D;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Shape;
-import java.awt.Stroke;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Arc2D;
 import java.awt.geom.Ellipse2D;
-import java.awt.geom.Path2D;
+import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
+import java.awt.geom.Point2D.Double;
 import java.util.List;
 
 import javax.swing.JComponent;
 import javax.swing.Timer;
 
 public class VisualisationPanel extends JComponent {
+	private static int PIXEL_RADIUS = 5;
+	
 	/** UID, as required by Swing */
 	private static final long serialVersionUID = -4286532773714402501L;
 
-	private GameRunner problemSetup = new GameRunner();
+	private GameRunner gameRunner = new GameRunner();
 	private Visualiser visualiser;
+	private GameRunner.GameState currentState;
 
 	private AffineTransform translation = AffineTransform.getTranslateInstance(
 			0, -1);
 	private AffineTransform transform = null;
 
-	private ASVConfig currentState;
-	private boolean animating = false;
-	private boolean displayingSolution = false;
 	private Timer animationTimer;
-	private int framePeriod = 20; // 50 FPS
+	private int framePeriod = 200;
 	private Integer frameNumber = null;
 	private int maxFrameNumber;
 
-	private int samplingPeriod = 100;
-
-	public VisualisationPanel(Visualiser visualiser) {
+	public VisualisationPanel(GameRunner gameRunner, Visualiser visualiser) {
 		super();
 		this.setBackground(Color.WHITE);
 		this.setOpaque(true);
+		this.gameRunner = gameRunner;
 		this.visualiser = visualiser;
 	}
-
-	public void setDisplayingSolution(boolean displayingSolution) {
-		this.displayingSolution = displayingSolution;
-		repaint();
-	}
-
-	public boolean isDisplayingSolution() {
-		return displayingSolution;
-	}
-
-	public void setFramerate(int framerate) {
-		this.framePeriod = 1000 / framerate;
+	
+	public void setPeriod(int period) {
+		this.framePeriod = period;
 		if (animationTimer != null) {
 			animationTimer.setDelay(framePeriod);
 		}
 	}
 
-	public void initAnimation() {
-		if (!problemSetup.solutionLoaded()) {
+	public void resetGame() {
+		if (!gameRunner.setupLoaded()) {
 			return;
 		}
+		gameRunner.initialise();
 		if (animationTimer != null) {
 			animationTimer.stop();
 		}
-		animating = true;
+		maxFrameNumber = gameRunner.getTurnNo();
 		gotoFrame(0);
-		maxFrameNumber = problemSetup.getPath().size() - 1;
 		animationTimer = new Timer(framePeriod, new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
 				int newFrameNumber = frameNumber + 1;
-				if (newFrameNumber >= maxFrameNumber) {
-					animationTimer.stop();
-					visualiser.setPlaying(false);
-				}
-				if (newFrameNumber <= maxFrameNumber) {
+				if (newFrameNumber > maxFrameNumber) {
+					stepGame();
+				} else {
 					gotoFrame(newFrameNumber);
+					if (newFrameNumber == maxFrameNumber && gameRunner.gameComplete()) {
+						animationTimer.stop();
+						visualiser.setPlaying(false);
+					}
 				}
 			}
 		});
 		visualiser.setPlaying(false);
 		visualiser.updateMaximum();
 	}
+	
+	public void stepGame() {
+		if (!gameRunner.setupLoaded()) {
+			return;
+		}
+		gameRunner.gotoStep(frameNumber);
+		gameRunner.doStep();
+		if (gameRunner.gameComplete()) {
+			animationTimer.stop();
+			visualiser.setPlaying(false);
+		}
+		maxFrameNumber = gameRunner.getTurnNo();
+		visualiser.updateMaximum();
+		gotoFrame(frameNumber + 1);
+	}
 
 	public void gotoFrame(int frameNumber) {
-		if (!animating
-				|| (this.frameNumber != null && this.frameNumber == frameNumber)) {
+		if (!gameRunner.setupLoaded() || 
+				(this.frameNumber != null && this.frameNumber == frameNumber)) {
 			return;
 		}
 		this.frameNumber = frameNumber;
 		visualiser.setFrameNumber(frameNumber);
-		currentState = problemSetup.getPath().get(frameNumber);
+		currentState = gameRunner.getStateSequence().get(frameNumber);
+		visualiser.updateInfoText();
 		repaint();
 	}
 
 	public int getFrameNumber() {
 		return frameNumber;
 	}
+	
+	public GameRunner.GameState getCurrentState() {
+		return currentState;
+	}
 
 	public void playPauseAnimation() {
+		if (!gameRunner.setupLoaded()) {
+			return;
+		}
 		if (animationTimer.isRunning()) {
 			animationTimer.stop();
 			visualiser.setPlaying(false);
 		} else {
-			if (frameNumber >= maxFrameNumber) {
+			if (gameRunner.gameComplete()) {
 				gotoFrame(0);
 			}
 			animationTimer.start();
@@ -121,16 +139,18 @@ public class VisualisationPanel extends JComponent {
 	}
 
 	public void stopAnimation() {
+		if (!gameRunner.setupLoaded()) {
+			return;
+		}
 		if (animationTimer != null) {
 			animationTimer.stop();
 		}
-		animating = false;
 		visualiser.setPlaying(false);
 		frameNumber = null;
 	}
 
-	public GameRunner getProblemSetup() {
-		return problemSetup;
+	public GameRunner getRunner() {
+		return gameRunner;
 	}
 
 	public void calculateTransform() {
@@ -138,80 +158,92 @@ public class VisualisationPanel extends JComponent {
 		transform.concatenate(translation);
 	}
 
-	public void paintState(Graphics2D g2, ASVConfig s) {
-		if (s == null) {
+	public void paintState(Graphics2D g2, AgentState state, SensingParameters sp,
+			Color playerColor, Color viewColor) {
+		if (state == null) {
 			return;
 		}
-		Path2D.Float path = new Path2D.Float();
-
-		List<Point2D> points = s.getASVPositions();
-		Point2D p = points.get(0);
-		path.moveTo(p.getX(), p.getY());
-		for (int i = 1; i < points.size(); i++) {
-			p = points.get(i);
-			path.lineTo(p.getX(), p.getY());
+		
+		Point2D p = state.getPosition();
+		if (sp.hasCamera()) {
+			double armDirection = state.getHeading() - Math.PI/2;
+			double armLength = state.getCameraArmLength();
+			Point2D p2 = new Vector2D(armLength, armDirection).addedTo(p);
+			Line2D line = new Line2D.Double(p, p2);
+			Color c = g2.getColor();
+			g2.setColor(playerColor);
+			g2.draw(transform.createTransformedShape(line));
+			g2.setColor(c);
+		} else {
+			Color c = g2.getColor();
+			g2.setColor(playerColor);
+			Point2D tp = transform.transform(p, null);
+			g2.fill(new Ellipse2D.Double(
+					tp.getX() - PIXEL_RADIUS, 
+					tp.getY() - PIXEL_RADIUS, 
+					PIXEL_RADIUS * 2, 
+					PIXEL_RADIUS * 2));
+			g2.setColor(c);
 		}
-		path.transform(transform);
-		g2.draw(path);
-		if (animating || !displayingSolution) {
-			p = transform.transform(points.get(0), null);
-			Color color = g2.getColor();
-			Stroke stroke = g2.getStroke();
-			g2.setColor(Color.BLACK);
-			g2.setStroke(new BasicStroke(1));
-			g2.draw(new Ellipse2D.Double(p.getX() - 4, p.getY() - 4, 8, 8));
-			g2.setColor(color);
-			g2.setStroke(stroke);
-		}
+		double viewAngle = sp.getAngle();
+		double startAngle = state.getHeading() - viewAngle / 2;
+		double viewRange = sp.getRange();
+		Arc2D arc = new Arc2D.Double();
+		arc.setArcByCenter(p.getX(), p.getY(), viewRange, -Math.toDegrees(startAngle),
+				-Math.toDegrees(viewAngle), Arc2D.PIE);
+		Color c = g2.getColor();
+		g2.setColor(viewColor);
+		g2.fill(transform.createTransformedShape(arc));
+		g2.setColor(c);
 	}
-
-	public void setSamplingPeriod(int samplingPeriod) {
-		this.samplingPeriod = samplingPeriod;
-		repaint();
+	
+	public void paintGrid(Graphics2D g2) {
+		g2.setColor(new Color(1.0f, 0.0f, 0.0f, 0.1f));
+		g2.setStroke(new BasicStroke(1.0f,
+				BasicStroke.CAP_BUTT,
+				BasicStroke.JOIN_MITER,
+				10.0f, new float[] {5.0f}, 0.0f));
+		int gridSize = gameRunner.getTargetPolicy().getGridSize();
+		for (int i = 1; i < gridSize; i++) {
+			double v = (double)i / gridSize;
+			Line2D line = new Line2D.Double(v, 0, v, 1);
+			g2.draw(transform.createTransformedShape(line));
+			line = new Line2D.Double(0, v, 1, v);
+			g2.draw(transform.createTransformedShape(line));
+		}
 	}
 
 	public void paintComponent(Graphics graphics) {
 		super.paintComponent(graphics);
-		if (!problemSetup.problemLoaded()) {
+		if (!gameRunner.setupLoaded()) {
 			return;
 		}
 		calculateTransform();
 		Graphics2D g2 = (Graphics2D) graphics;
 		g2.setColor(Color.WHITE);
 		g2.fillRect(0, 0, getWidth(), getHeight());
+		
+		paintGrid(g2);
 
-		List<RectRegion> obstacles = problemSetup.getObstacles();
-		if (obstacles != null) {
-			g2.setColor(Color.red);
-			for (RectRegion obs : problemSetup.getObstacles()) {
-				Shape transformed = transform.createTransformedShape(obs
-						.getRect());
-				g2.fill(transformed);
-			}
+		List<RectRegion> obstacles = gameRunner.getObstacles();
+		g2.setColor(Color.RED);
+		for (RectRegion obs : obstacles) {
+			Shape transformed = transform.createTransformedShape(obs
+					.getRect());
+			g2.fill(transformed);
 		}
-
-		g2.setStroke(new BasicStroke(2));
-		if (!animating) {
-			if (displayingSolution) {
-				List<ASVConfig> path = problemSetup.getPath();
-				int lastIndex = path.size() - 1;
-				for (int i = 0; i < lastIndex; i += samplingPeriod) {
-					float t = (float) i / lastIndex;
-					g2.setColor(new Color(0, t, 1 - t));
-					paintState(g2, path.get(i));
-				}
-				g2.setColor(Color.green);
-				paintState(g2, path.get(lastIndex));
-			} else {
-				g2.setColor(Color.blue);
-				paintState(g2, problemSetup.getInitialState());
-
-				g2.setColor(Color.green);
-				paintState(g2, problemSetup.getGoalState());
-			}
-		} else {
-			g2.setColor(Color.blue);
-			paintState(g2, currentState);
+		
+		g2.setColor(new Color(0.0f, 1.0f, 0.0f, 0.5f));
+		Shape transformed = transform.createTransformedShape(gameRunner.getGoalRegion().getRect());
+		g2.fill(transformed);
+		
+		AgentState[] states = currentState.getPlayerStates();
+		SensingParameters sp = gameRunner.getTrackerSensingParams();
+		paintState(g2, states[0], sp, Color.BLUE, new Color(0.0f, 0.0f, 1.0f, 0.2f));
+		
+		sp = gameRunner.getTargetSensingParams();
+		for (int i = 1; i < states.length; i++) {
+			paintState(g2, states[i], sp, Color.BLACK, new Color(0.0f, 0.0f, 0.0f, 0.2f));
 		}
 	}
 }

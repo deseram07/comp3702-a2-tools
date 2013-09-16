@@ -1,7 +1,5 @@
 package game;
 
-import java.awt.geom.Point2D;
-
 public class Percept {
 	private int turnNo;
 	private int agentNo;

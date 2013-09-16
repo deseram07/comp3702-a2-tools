@@ -1,5 +1,7 @@
 package game;
 
+import geom.Vector2D;
+
 import java.awt.geom.Point2D;
 
 /**
@@ -87,9 +89,7 @@ public class Action {
 		if (distance == 0) {
 			endPos = startPos;
 		} else {
-			endPos = new Point2D.Double(
-					startPos.getX() + distance * Math.cos(heading),
-					startPos.getY() + distance * Math.sin(heading));
+			endPos = new Vector2D(distance, heading).addedTo(startPos);
 		}
 		this.resultingState = new AgentState(endPos, heading, startState.hasCamera(), newCameraArmLength);
 	}
@@ -116,19 +116,15 @@ public class Action {
 		this.newCameraArmLength = newCameraArmLength;
 		
 		Point2D startPos = startState.getPosition();
-		Point2D endPos;
 		if (startPos.equals(desiredPos)) {
 			this.heading = startState.getHeading();
 			this.distance = 0;
-			endPos = startPos;
 		} else {
-			double dy = desiredPos.getY() - startPos.getY();
-			double dx =  desiredPos.getX() - startPos.getX();
-			this.heading = Math.atan2(dy, dx);
-			this.distance = Math.sqrt(dx*dx + dy*dy);
-			endPos = desiredPos;
+			Vector2D motion = new Vector2D(startPos, desiredPos);
+			this.heading = motion.getDirection();
+			this.distance = motion.getMagnitude();
 		}
-		this.resultingState = new AgentState(endPos, heading, startState.hasCamera(), newCameraArmLength);
+		this.resultingState = new AgentState(desiredPos, heading, startState.hasCamera(), newCameraArmLength);
 	}
 
 	
