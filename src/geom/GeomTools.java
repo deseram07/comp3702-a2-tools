@@ -1,9 +1,10 @@
 package geom;
 
-/** 
+/**
  * Assorted functions to help with handling the game's geometry.
+ * 
  * @author lackofcheese
- *
+ * 
  */
 public class GeomTools {
 	/**

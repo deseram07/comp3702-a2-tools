@@ -14,18 +14,41 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
+/**
+ * Represents the policy of a target.
+ * 
+ * @author lackofcheese
+ * 
+ */
 public class TargetPolicy {
+	/** The grid over which the policy is defined. */
 	private Grid grid;
+	/** The policy itself, as a mapping of grid cells. */
 	private Map<Grid.GridCell, Grid.GridCell> policyMap;
-	
+
+	/**
+	 * Constructs a duplicate policy.
+	 * 
+	 * @param policy
+	 *            the policy to duplicate.
+	 */
 	public TargetPolicy(TargetPolicy policy) {
 		this.grid = new Grid(policy.grid.getGridSize());
-		this.policyMap = new HashMap<Grid.GridCell, Grid.GridCell>(policy.policyMap);
+		this.policyMap = new HashMap<Grid.GridCell, Grid.GridCell>(
+				policy.policyMap);
 	}
-	
+
+	/**
+	 * Constructs a policy from a file.
+	 * 
+	 * @param path
+	 *            the path of the file to read.
+	 * @throws IOException
+	 *             if the file is invalid.
+	 */
 	public TargetPolicy(String path) throws IOException {
 		policyMap = new HashMap<Grid.GridCell, Grid.GridCell>();
-		
+
 		BufferedReader input = new BufferedReader(new FileReader(path));
 		int lineNo = 0;
 		String line;
@@ -38,11 +61,12 @@ public class TargetPolicy {
 			int numCols = s.nextInt();
 			s.close();
 			if (numRows != numCols) {
-				throw new IOException("Number of rows must equal number of columns.");
+				throw new IOException(
+						"Number of rows must equal number of columns.");
 			}
 			int gridSize = numRows;
 			grid = new Grid(gridSize);
-			
+
 			for (int i = 0; i < gridSize; i++) {
 				line = input.readLine();
 				lineNo++;
@@ -69,19 +93,43 @@ public class TargetPolicy {
 			input.close();
 		}
 	}
-	
+
+	/**
+	 * Returns the grid used by this policy.
+	 * 
+	 * @return the grid used by this policy.
+	 */
 	public Grid getGrid() {
 		return grid;
 	}
-	
+
+	/**
+	 * Returns the size of the grid for this policy.
+	 * 
+	 * @return the size of the grid for this policy.
+	 */
 	public int getGridSize() {
 		return grid.getGridSize();
 	}
-	
+
+	/**
+	 * Returns the proper next cell for the given cell.
+	 * 
+	 * @param index
+	 *            the current cell.
+	 * @return the proper next cell for the given cell.
+	 */
 	public GridCell getNextIndex(GridCell index) {
 		return policyMap.get(index);
 	}
-	
+
+	/**
+	 * Returns the proper action for the given state.
+	 * 
+	 * @param currentState
+	 *            the current state.
+	 * @return the proper action for the given state.
+	 */
 	public Action getAction(AgentState currentState) {
 		GridCell startIndex = grid.getIndex(currentState.getPosition());
 		GridCell endIndex = policyMap.get(startIndex);

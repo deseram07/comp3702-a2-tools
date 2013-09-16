@@ -1,11 +1,11 @@
 package game;
 
 /**
- * Represents an attempted action,
- * and the actual result of executing this action.
+ * Represents an attempted action, and the actual result of executing this
+ * action.
  * 
  * @author lackofcheese
- *
+ * 
  */
 public class ActionResult {
 	/** The action attempted. */
@@ -14,12 +14,16 @@ public class ActionResult {
 	private AgentState newState;
 	/** The reward. */
 	private double reward;
-	
+
 	/**
 	 * Constructs an action result.
-	 * @param action the action.
-	 * @param newState the resulting state.
-	 * @param reward the reward.
+	 * 
+	 * @param action
+	 *            the action.
+	 * @param newState
+	 *            the resulting state.
+	 * @param reward
+	 *            the reward.
 	 */
 	public ActionResult(Action action, AgentState newState, double reward) {
 		this.action = action;
@@ -29,6 +33,7 @@ public class ActionResult {
 
 	/**
 	 * Returns the attempted action.
+	 * 
 	 * @return the attempted action.
 	 */
 	public Action getAction() {
@@ -37,6 +42,7 @@ public class ActionResult {
 
 	/**
 	 * Returns the resulting state.
+	 * 
 	 * @return the resulting state.
 	 */
 	public AgentState getNewState() {
@@ -45,6 +51,7 @@ public class ActionResult {
 
 	/**
 	 * Returns the reward.
+	 * 
 	 * @return the reward.
 	 */
 	public double getReward() {

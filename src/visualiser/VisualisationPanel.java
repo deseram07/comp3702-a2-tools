@@ -26,7 +26,7 @@ import javax.swing.Timer;
 
 public class VisualisationPanel extends JComponent {
 	private static int PIXEL_RADIUS = 5;
-	
+
 	/** UID, as required by Swing */
 	private static final long serialVersionUID = -4286532773714402501L;
 
@@ -50,7 +50,7 @@ public class VisualisationPanel extends JComponent {
 		this.gameRunner = gameRunner;
 		this.visualiser = visualiser;
 	}
-	
+
 	public void setPeriod(int period) {
 		this.framePeriod = period;
 		if (animationTimer != null) {
@@ -76,7 +76,8 @@ public class VisualisationPanel extends JComponent {
 					stepGame();
 				} else {
 					gotoFrame(newFrameNumber);
-					if (newFrameNumber == maxFrameNumber && gameRunner.gameComplete()) {
+					if (newFrameNumber == maxFrameNumber
+							&& gameRunner.gameComplete()) {
 						animationTimer.stop();
 						visualiser.setPlaying(false);
 					}
@@ -86,13 +87,13 @@ public class VisualisationPanel extends JComponent {
 		visualiser.setPlaying(false);
 		visualiser.updateMaximum();
 	}
-	
+
 	public void stepGame() {
 		if (!gameRunner.setupLoaded()) {
 			return;
 		}
-		gameRunner.gotoStep(frameNumber);
-		gameRunner.doStep();
+		gameRunner.undoTo(frameNumber);
+		gameRunner.simulateTurn();
 		if (gameRunner.gameComplete()) {
 			animationTimer.stop();
 			visualiser.setPlaying(false);
@@ -103,8 +104,8 @@ public class VisualisationPanel extends JComponent {
 	}
 
 	public void gotoFrame(int frameNumber) {
-		if (!gameRunner.setupLoaded() || 
-				(this.frameNumber != null && this.frameNumber == frameNumber)) {
+		if (!gameRunner.setupLoaded()
+				|| (this.frameNumber != null && this.frameNumber == frameNumber)) {
 			return;
 		}
 		this.frameNumber = frameNumber;
@@ -117,7 +118,7 @@ public class VisualisationPanel extends JComponent {
 	public int getFrameNumber() {
 		return frameNumber;
 	}
-	
+
 	public GameRunner.GameState getCurrentState() {
 		return currentState;
 	}
@@ -158,15 +159,15 @@ public class VisualisationPanel extends JComponent {
 		transform.concatenate(translation);
 	}
 
-	public void paintState(Graphics2D g2, AgentState state, SensingParameters sp,
-			Color playerColor, Color viewColor) {
+	public void paintState(Graphics2D g2, AgentState state,
+			SensingParameters sp, Color playerColor, Color viewColor) {
 		if (state == null) {
 			return;
 		}
-		
+
 		Point2D p = state.getPosition();
 		if (sp.hasCamera()) {
-			double armDirection = state.getHeading() - Math.PI/2;
+			double armDirection = state.getHeading() - Math.PI / 2;
 			double armLength = state.getCameraArmLength();
 			Point2D p2 = new Vector2D(armLength, armDirection).addedTo(p);
 			Line2D line = new Line2D.Double(p, p2);
@@ -178,34 +179,30 @@ public class VisualisationPanel extends JComponent {
 			Color c = g2.getColor();
 			g2.setColor(playerColor);
 			Point2D tp = transform.transform(p, null);
-			g2.fill(new Ellipse2D.Double(
-					tp.getX() - PIXEL_RADIUS, 
-					tp.getY() - PIXEL_RADIUS, 
-					PIXEL_RADIUS * 2, 
-					PIXEL_RADIUS * 2));
+			g2.fill(new Ellipse2D.Double(tp.getX() - PIXEL_RADIUS, tp.getY()
+					- PIXEL_RADIUS, PIXEL_RADIUS * 2, PIXEL_RADIUS * 2));
 			g2.setColor(c);
 		}
 		double viewAngle = sp.getAngle();
 		double startAngle = state.getHeading() - viewAngle / 2;
 		double viewRange = sp.getRange();
 		Arc2D arc = new Arc2D.Double();
-		arc.setArcByCenter(p.getX(), p.getY(), viewRange, -Math.toDegrees(startAngle),
-				-Math.toDegrees(viewAngle), Arc2D.PIE);
+		arc.setArcByCenter(p.getX(), p.getY(), viewRange,
+				-Math.toDegrees(startAngle), -Math.toDegrees(viewAngle),
+				Arc2D.PIE);
 		Color c = g2.getColor();
 		g2.setColor(viewColor);
 		g2.fill(transform.createTransformedShape(arc));
 		g2.setColor(c);
 	}
-	
+
 	public void paintGrid(Graphics2D g2) {
 		g2.setColor(new Color(1.0f, 0.0f, 0.0f, 0.1f));
-		g2.setStroke(new BasicStroke(1.0f,
-				BasicStroke.CAP_BUTT,
-				BasicStroke.JOIN_MITER,
-				10.0f, new float[] {5.0f}, 0.0f));
+		g2.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT,
+				BasicStroke.JOIN_MITER, 10.0f, new float[] { 5.0f }, 0.0f));
 		int gridSize = gameRunner.getTargetPolicy().getGridSize();
 		for (int i = 1; i < gridSize; i++) {
-			double v = (double)i / gridSize;
+			double v = (double) i / gridSize;
 			Line2D line = new Line2D.Double(v, 0, v, 1);
 			g2.draw(transform.createTransformedShape(line));
 			line = new Line2D.Double(0, v, 1, v);
@@ -222,28 +219,30 @@ public class VisualisationPanel extends JComponent {
 		Graphics2D g2 = (Graphics2D) graphics;
 		g2.setColor(Color.WHITE);
 		g2.fillRect(0, 0, getWidth(), getHeight());
-		
+
 		paintGrid(g2);
 
 		List<RectRegion> obstacles = gameRunner.getObstacles();
 		g2.setColor(Color.RED);
 		for (RectRegion obs : obstacles) {
-			Shape transformed = transform.createTransformedShape(obs
-					.getRect());
+			Shape transformed = transform.createTransformedShape(obs.getRect());
 			g2.fill(transformed);
 		}
-		
+
 		g2.setColor(new Color(0.0f, 1.0f, 0.0f, 0.5f));
-		Shape transformed = transform.createTransformedShape(gameRunner.getGoalRegion().getRect());
+		Shape transformed = transform.createTransformedShape(gameRunner
+				.getGoalRegion().getRect());
 		g2.fill(transformed);
-		
+
 		AgentState[] states = currentState.getPlayerStates();
 		SensingParameters sp = gameRunner.getTrackerSensingParams();
-		paintState(g2, states[0], sp, Color.BLUE, new Color(0.0f, 0.0f, 1.0f, 0.2f));
-		
+		paintState(g2, states[0], sp, Color.BLUE, new Color(0.0f, 0.0f, 1.0f,
+				0.2f));
+
 		sp = gameRunner.getTargetSensingParams();
 		for (int i = 1; i < states.length; i++) {
-			paintState(g2, states[i], sp, Color.BLACK, new Color(0.0f, 0.0f, 0.0f, 0.2f));
+			paintState(g2, states[i], sp, Color.BLACK, new Color(0.0f, 0.0f,
+					0.0f, 0.2f));
 		}
 	}
 }

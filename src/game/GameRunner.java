@@ -317,9 +317,9 @@ public class GameRunner {
 		/** The percepts acquired since the last tracker turn. */
 		List<Percept> trackerPercepts;
 
-		/** 
-		 * Constructs a game state representing the initial
-		 * state of the game (i.e. just before the 0-th action).
+		/**
+		 * Constructs a game state representing the initial state of the game
+		 * (i.e. just before the 0-th action).
 		 */
 		public GameState() {
 			turnNo = 0;
@@ -362,7 +362,9 @@ public class GameRunner {
 
 		/**
 		 * Duplicates another game state.
-		 * @param other the state to duplicate.
+		 * 
+		 * @param other
+		 *            the state to duplicate.
 		 */
 		public GameState(GameState other) {
 			this.gameComplete = other.gameComplete;
@@ -381,6 +383,7 @@ public class GameRunner {
 
 		/**
 		 * Returns whether this state represents a completed game.
+		 * 
 		 * @return whether this state represents a completed game.
 		 */
 		public boolean isGameComplete() {
@@ -389,6 +392,7 @@ public class GameRunner {
 
 		/**
 		 * Returns the turn number of this game.
+		 * 
 		 * @return the turn number of this game.
 		 */
 		public int getTurnNo() {
@@ -397,6 +401,7 @@ public class GameRunner {
 
 		/**
 		 * Returns the number of the player to act.
+		 * 
 		 * @return the number of the player to act.
 		 */
 		public int getCurrentPlayer() {
@@ -405,6 +410,7 @@ public class GameRunner {
 
 		/**
 		 * Returns the scores of the players.
+		 * 
 		 * @return the scores of the players.
 		 */
 		public double[] getPlayerScores() {
@@ -413,6 +419,7 @@ public class GameRunner {
 
 		/**
 		 * Returns the states of the players.
+		 * 
 		 * @return the states of the players.
 		 */
 		public AgentState[] getPlayerStates() {
@@ -437,6 +444,7 @@ public class GameRunner {
 
 	/**
 	 * Returns the sequence of actions with associated results.
+	 * 
 	 * @return the sequence of actions with associated results.
 	 */
 	public List<ActionResult> getActionResults() {
@@ -445,6 +453,7 @@ public class GameRunner {
 
 	/**
 	 * Returns the sequence of game states.
+	 * 
 	 * @return the sequence of game states.
 	 */
 	public List<GameState> getStateSequence() {
@@ -453,6 +462,7 @@ public class GameRunner {
 
 	/**
 	 * Returns the current turn number.
+	 * 
 	 * @return the current turn number.
 	 */
 	public int getTurnNo() {
@@ -469,26 +479,28 @@ public class GameRunner {
 		stateSequence.add(cs);
 	}
 
-	public void gotoStep(int stepNo) {
-		if (stepNo == cs.turnNo) {
+	/**
+	 * Undoes all moves after the given turn number.
+	 * 
+	 * @param desiredTurnNo
+	 *            the turn number to revert to.
+	 */
+	public void undoTo(int desiredTurnNo) {
+		if (desiredTurnNo >= cs.turnNo) {
 			return;
 		}
 
-		if (stepNo > cs.turnNo) {
-			while (cs.turnNo < stepNo) {
-				doStep();
-			}
-			return;
-		}
-
-		while (cs.turnNo > stepNo) {
+		while (cs.turnNo > desiredTurnNo) {
 			stateSequence.remove(cs.turnNo);
 			cs.turnNo -= 1;
 			actionResultSequence.remove(cs.turnNo);
 		}
 	}
 
-	public void doStep() {
+	/**
+	 * Simulates a single turn of the game.
+	 */
+	public void simulateTurn() {
 		cs = new GameState(cs);
 		int previousTurn = cs.turnNo - numTargets - 1;
 		ActionResult previousResult;
@@ -515,7 +527,7 @@ public class GameRunner {
 
 		ActionResult result;
 		if (action != null) {
-			result = doAction(cs.turnNo, cs.currentPlayer, action);
+			result = simulateAction(cs.turnNo, cs.currentPlayer, action);
 			scores[cs.currentPlayer] += result.getReward();
 		} else {
 			result = new ActionResult(null, previousResult.getNewState(), 0);
@@ -540,8 +552,20 @@ public class GameRunner {
 		stateSequence.add(cs);
 	}
 
-	public ActionResult doAction(int turnNo, int playerNo, Action action) {
-		ActionResult result = doMovement(turnNo, playerNo, action);
+	/**
+	 * Simulates an action taken by a player; this consists of a movement and
+	 * also testing for which other players can be seen.
+	 * 
+	 * @param turnNo
+	 *            the turn number.
+	 * @param playerNo
+	 *            the acting player.
+	 * @param action
+	 *            the action taken.
+	 * @return the result of the action.
+	 */
+	public ActionResult simulateAction(int turnNo, int playerNo, Action action) {
+		ActionResult result = simulateMovement(turnNo, playerNo, action);
 		AgentState newState = result.getNewState();
 		double reward = result.getReward();
 
@@ -568,7 +592,16 @@ public class GameRunner {
 		return new ActionResult(action, newState, reward);
 	}
 
-	public ActionResult doMovement(int turnNo, int playerNo, Action action) {
+	/**
+	 * Simulates only the movement / HQ call aspect of an action - doesn't add
+	 * the rewards for seeing other players.
+	 * 
+	 * @param turnNo
+	 * @param playerNo
+	 * @param action
+	 * @return the result of the movement / HQ call.
+	 */
+	public ActionResult simulateMovement(int turnNo, int playerNo, Action action) {
 		AgentState startState = action.getStartState();
 		if (action.isCallingHQ()) {
 			return new ActionResult(action, startState, -5);
@@ -579,39 +612,85 @@ public class GameRunner {
 		}
 
 		AgentState endState = action.getResultingState();
-		Point2D startPos = startState.getPosition();
+		Point2D endPos = endState.getPosition();
 		double heading = action.getHeading();
+		boolean hasCamera = endState.hasCamera();
+		double newCameraArmLength = endState.getCameraArmLength();
+
+		if (hasCamera) {
+			double minLength = trackerSensingParams.getMinLength();
+			double maxLength = trackerSensingParams.getMaxLength();
+			if (newCameraArmLength < minLength) {
+				newCameraArmLength = minLength;
+			} else if (newCameraArmLength > maxLength) {
+				newCameraArmLength = maxLength;
+			}
+		}
+
+		Point2D startPos = startState.getPosition();
 		double distance = action.getDistance();
 		if (distance > maxMovementDistance + MAX_DISTANCE_ERROR) {
 			distance = maxMovementDistance;
-			Point2D endPos = new Vector2D(distance, heading).addedTo(startPos);
-			endState = new AgentState(endPos, heading, startState.hasCamera(),
-					action.getNewCameraArmLength());
+			endPos = new Vector2D(distance, heading).addedTo(startPos);
 		}
 
 		if (!canMove(startState, endState)) {
-			endState = new AgentState(startPos, heading,
-					startState.hasCamera(), action.getNewCameraArmLength());
-
+			endPos = startPos;
 		}
+
+		endState = new AgentState(endPos, heading, hasCamera,
+				newCameraArmLength);
 		cs.playerStates[playerNo] = endState;
 		return new ActionResult(action, endState, 0);
 	}
 
+	/**
+	 * Returns true iff the direct motion between the two states is valid.
+	 * 
+	 * @param startState
+	 *            the starting state.
+	 * @param endState
+	 *            the ending state.
+	 * @return
+	 */
 	public boolean canMove(AgentState startState, AgentState endState) {
 		// TODO Implement the movement test.
 		return true;
 	}
 
+	/**
+	 * Returns true iff the observer can see the observed.
+	 * 
+	 * @param observerNo
+	 *            the player no. of the observer.
+	 * @param observedNo
+	 *            the player no. of the observed.
+	 * @return
+	 */
 	public boolean canSee(int observerNo, int observedNo) {
 		// TODO Implement the vision test.
 		return false;
 	}
 
+	/**
+	 * Returns true iff the given state lies within the goal.
+	 * 
+	 * @param s
+	 *            the state to test.
+	 * @return true iff the given state lies within the goal.
+	 */
 	public boolean isWithinGoal(AgentState s) {
 		return goalRegion.getRect().contains(s.getPosition());
 	}
 
+	/**
+	 * Writes the current game results to an output file.
+	 * 
+	 * @param outputPath
+	 *            the path to write to.
+	 * @throws IOException
+	 *             if the file cannot be written.
+	 */
 	public void writeResults(String outputPath) throws IOException {
 		FileWriter writer = new FileWriter(outputPath);
 		writer.write(actionResultSequence.size() + lineSep);
@@ -630,10 +709,13 @@ public class GameRunner {
 		writer.close();
 	}
 
+	/**
+	 * Runs the full game.
+	 */
 	public void runFull() {
 		initialise();
 		while (!gameComplete()) {
-			doStep();
+			simulateTurn();
 		}
 	}
 
@@ -680,13 +762,13 @@ public class GameRunner {
 		double[] scores = runner.cs.playerScores;
 		double trackerScore = scores[0];
 		System.out.println("Final Scores:");
-		System.out.println("Tracker: " + (int)trackerScore);
+		System.out.println("Tracker: " + (int) trackerScore);
 		System.out.print("Target(s): ");
 		StringBuilder sb = new StringBuilder();
 		int winValue = 1;
 		for (int i = 1; i <= runner.numTargets; i++) {
 			double score = scores[i];
-			sb.append(String.format("%d ", (int)score));
+			sb.append(String.format("%d ", (int) score));
 			if (score > trackerScore) {
 				winValue = -1;
 			} else if (score == trackerScore) {

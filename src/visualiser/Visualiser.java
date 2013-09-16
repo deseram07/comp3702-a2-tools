@@ -45,7 +45,6 @@ import javax.swing.event.ChangeListener;
 import javax.swing.table.TableModel;
 import javax.swing.table.AbstractTableModel;
 
-
 public class Visualiser {
 	private Container container;
 
@@ -60,7 +59,8 @@ public class Visualiser {
 	private JMenu fileMenu;
 	private JMenuItem loadSetupItem, writeOutputItem, exitItem;
 	private JMenu gameMenu;
-	private JMenuItem playPauseItem, resetItem, backItem, forwardItem, stepItem;
+	private JMenuItem playPauseItem, resetItem, backItem, forwardItem,
+			stepItem;
 
 	private JPanel gameControls;
 	private JSlider manualSlider;
@@ -135,21 +135,22 @@ public class Visualiser {
 		public void componentShown(ComponentEvent e) {
 		}
 	}
-	
+
 	private AbstractTableModel tableDataModel = new AbstractTableModel() {
 		/** Required UID */
 		private static final long serialVersionUID = 2401048818869542809L;
+
 		public int getColumnCount() {
 			if (!gameRunner.setupLoaded()) {
 				return 0;
 			}
 			return gameRunner.getNumTargets() + 2;
 		}
-		
+
 		public int getRowCount() {
 			return 2;
 		}
-		
+
 		public Object getValueAt(int row, int col) {
 			if (col == 0) {
 				if (row == 0) {
@@ -229,21 +230,21 @@ public class Visualiser {
 			vp.playPauseAnimation();
 		}
 	};
-	
+
 	private ActionListener forwardListener = new ActionListener() {
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
 			vp.gotoFrame(vp.getFrameNumber() + 1);
 		}
 	};
-	
+
 	private ActionListener backListener = new ActionListener() {
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
 			vp.gotoFrame(vp.getFrameNumber() - 1);
 		}
 	};
-	
+
 	private ActionListener stepListener = new ActionListener() {
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
@@ -292,10 +293,10 @@ public class Visualiser {
 		p.add(infoLabel);
 		infoPanel.add(p, BorderLayout.CENTER);
 		scoreTable = new JTable(tableDataModel);
-		//JScrollPane scrollPane = new JScrollPane(scoreTable);
+		// JScrollPane scrollPane = new JScrollPane(scoreTable);
 		infoPanel.add(scoreTable, BorderLayout.EAST);
 		infoPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 5, 10));
-		
+
 		container.add(infoPanel, BorderLayout.NORTH);
 
 		createMenus();
@@ -344,7 +345,7 @@ public class Visualiser {
 				"Manage the animation.");
 		menuBar.add(gameMenu);
 		gameMenu.setEnabled(false);
-		
+
 		stepItem = new JMenuItem("Simulate one step");
 		stepItem.setMnemonic(KeyEvent.VK_S);
 		stepItem.addActionListener(menuListener);
@@ -359,13 +360,13 @@ public class Visualiser {
 		resetItem.setMnemonic(KeyEvent.VK_T);
 		resetItem.addActionListener(menuListener);
 		gameMenu.add(resetItem);
-		
+
 		backItem = new JMenuItem("Back one step");
 		backItem.setMnemonic(KeyEvent.VK_B);
 		backItem.addActionListener(menuListener);
 		backItem.setEnabled(false);
 		gameMenu.add(backItem);
-		
+
 		forwardItem = new JMenuItem("Forward one step");
 		forwardItem.setMnemonic(KeyEvent.VK_F);
 		forwardItem.addActionListener(menuListener);
@@ -467,7 +468,8 @@ public class Visualiser {
 			gameRunner.loadSetup(f.getPath());
 			setHasSetup(true);
 		} catch (IOException e) {
-			JOptionPane.showMessageDialog(container, e.getMessage(), "", JOptionPane.ERROR_MESSAGE);
+			JOptionPane.showMessageDialog(container, e.getMessage(), "",
+					JOptionPane.ERROR_MESSAGE);
 			showFileError(f);
 		}
 	}
@@ -522,9 +524,9 @@ public class Visualiser {
 			playPauseButton.setIcon(playIcon);
 		}
 		playPauseButton.repaint();
-		
+
 	}
-	
+
 	public void updateControls() {
 		if (!hasSetup) {
 			return;
@@ -532,7 +534,7 @@ public class Visualiser {
 		boolean canBack = vp.getFrameNumber() > 0;
 		backButton.setEnabled(canBack);
 		backItem.setEnabled(canBack);
-		
+
 		boolean canForward = vp.getFrameNumber() < gameRunner.getTurnNo();
 		forwardButton.setEnabled(canForward);
 		forwardItem.setEnabled(canForward);

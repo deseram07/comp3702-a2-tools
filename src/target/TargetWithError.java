@@ -9,22 +9,30 @@ import geom.Grid;
 
 import java.util.List;
 
+/**
+ * Represents a target with non-deterministic motion.
+ * 
+ * A2 will be tested with similar targets, but definitely not with the same
+ * numbers used here!
+ * 
+ * @author lackofcheese
+ * 
+ */
 public class TargetWithError implements Agent {
-	private TargetPolicy targetPolicy;
-	
-	private int[] offsets = new int[] {
-			0, 
-			1, -1, 
-			2, -2,
-			3, -3,
-			4};
-	private double[] chances = new double[] {
-			0.5,
-			0.2, 0.1,
-			0.08, 0.03,
-			0.05, 0.02,
-			100};
-	
+	/** The policy of this target. */
+	private TargetPolicy policy;
+
+	/** The angular error offsets (as multiples of PI/4) */
+	private int[] offsets = new int[] { 0, 1, -1, 2, -2, 3, -3, 4 };
+	/** The chance associated with each offset. */
+	private double[] chances = new double[] { 0.5, 0.2, 0.1, 0.08, 0.03, 0.05,
+			0.02, 100 };
+
+	/**
+	 * Returns a random offset as per the distribution (offsets/chances).
+	 * 
+	 * @return a random offset as per the distribution (offsets/chances).
+	 */
 	private double randomOffset() {
 		double r = Math.random();
 		int index = 0;
@@ -35,21 +43,24 @@ public class TargetWithError implements Agent {
 		}
 		return offsets[index] * Math.PI / 4;
 	}
-	
-	public TargetWithError(TargetPolicy targetPolicy) {
-		this.targetPolicy = targetPolicy;
-	}
-	
-	public TargetWithError(Target target) {
+
+	/**
+	 * Returns a new non-deterministic target with the given policy.
+	 * 
+	 * @param policy
+	 *            the policy to use.
+	 */
+	public TargetWithError(TargetPolicy policy) {
+		this.policy = policy;
 	}
 
 	@Override
-	public Action getAction(int turnNo, ActionResult previousResult, 
+	public Action getAction(int turnNo, ActionResult previousResult,
 			double[] scores, List<Percept> newPercepts) {
-		Grid grid = targetPolicy.getGrid();
+		Grid grid = policy.getGrid();
 		AgentState currentState = previousResult.getNewState();
 		Grid.GridCell startIndex = grid.getIndex(currentState.getPosition());
-		Grid.GridCell desiredIndex = targetPolicy.getNextIndex(startIndex);
+		Grid.GridCell desiredIndex = policy.getNextIndex(startIndex);
 		if (desiredIndex.equals(startIndex)) {
 			return new Action(currentState);
 		}
@@ -59,5 +70,14 @@ public class TargetWithError implements Agent {
 		int newActionCode = grid.getCodeFromHeading(newHeading);
 		Grid.GridCell endIndex = grid.decodeAction(startIndex, newActionCode);
 		return new Action(currentState, grid.getCentre(endIndex));
+	}
+
+	/**
+	 * Returns the policy used by this target.
+	 * 
+	 * @return the policy used by this target.
+	 */
+	public TargetPolicy getPolicy() {
+		return policy;
 	}
 }

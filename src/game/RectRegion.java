@@ -14,18 +14,20 @@ import java.util.Scanner;
 public class RectRegion {
 	/** Stores the region as a Rectangle2D */
 	private Rectangle2D rect;
-	
+
 	/**
 	 * Constructs this region as a duplicte of another region.
-	 * @param other the region to duplicate.
+	 * 
+	 * @param other
+	 *            the region to duplicate.
 	 */
 	public RectRegion(RectRegion other) {
 		this.rect = (Rectangle2D) other.rect.clone();
 	}
 
 	/**
-	 * Constructs a region with the given (x,y) coordinates of the
-	 * bottom-left corner, as well as the width and height.
+	 * Constructs a region with the given (x,y) coordinates of the bottom-left
+	 * corner, as well as the width and height.
 	 * 
 	 * @param x
 	 *            the minimum x-value.
@@ -41,9 +43,8 @@ public class RectRegion {
 	}
 
 	/**
-	 * Constructs a region from the representation used in the input file:
-	 * that is, the x- and y- coordinates of all of the corners of the
-	 * rectangle.
+	 * Constructs a region from the representation used in the input file: that
+	 * is, the x- and y- coordinates of all of the corners of the rectangle.
 	 * 
 	 * @param str
 	 */
