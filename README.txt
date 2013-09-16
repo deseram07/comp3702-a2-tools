@@ -22,7 +22,7 @@ Note that these commands may require you to use full path to java.exe,
 as per section (4).
 
 
-3) Manual Compilation
+(3) Manual Compilation
 If you want to compile and run the code manually, you will need to do the
 following:
 1) Download and install Apache Ant.
