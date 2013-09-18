@@ -77,9 +77,9 @@ public class TargetDivergence implements ActionDivergence {
 	public Action divergeAction(Action action) {
 		AgentState currentState = action.getStartState();
 		AgentState desiredState = action.getResultingState();
-		TargetGrid.GridCell startIndex = grid.getIndex(currentState
+		TargetGrid.GridCell startIndex = grid.getCell(currentState
 				.getPosition());
-		TargetGrid.GridCell desiredIndex = grid.getIndex(desiredState
+		TargetGrid.GridCell desiredIndex = grid.getCell(desiredState
 				.getPosition());
 		if (desiredIndex.equals(startIndex)) {
 			return new Action(currentState); // No error when standing still.
@@ -87,11 +87,11 @@ public class TargetDivergence implements ActionDivergence {
 
 		// Otherwise, we add a random offset to the heading, and return this
 		// action.
-		int actionCode = grid.encodeAction(startIndex, desiredIndex);
+		int actionCode = grid.encodeFromIndices(startIndex, desiredIndex);
 		double heading = grid.getHeading(actionCode);
 		double newHeading = heading + randomOffset();
 		int newActionCode = grid.getCodeFromHeading(newHeading);
-		TargetGrid.GridCell endIndex = grid.decodeAction(startIndex,
+		TargetGrid.GridCell endIndex = grid.decodeFromIndices(startIndex,
 				newActionCode);
 		return new Action(currentState, grid.getCentre(endIndex));
 	}

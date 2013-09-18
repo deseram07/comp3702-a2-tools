@@ -211,15 +211,15 @@ public class VisualisationPanel extends JComponent {
 	}
 
 	public void paintAction(Graphics2D g2, ActionResult result) {
-		Action action = result.getAction();
+		Action action = result.getDesiredAction();
 		if (!action.getStartState().hasCamera()) {
 			return;
 		}
 		double startHeading = action.getStartState().getHeading();
 		Point2D startPos = action.getStartState().getPosition();
-		double endHeading = result.getNewState().getHeading();
-		Point2D endPos = result.getNewState().getPosition();
-		double armLength = result.getNewState().getCameraArmLength();
+		double endHeading = result.getResultingState().getHeading();
+		Point2D endPos = result.getResultingState().getPosition();
+		double armLength = result.getResultingState().getCameraArmLength();
 
 		Shape moveSweep = GeomTools.getMoveSweep(startPos, endPos, armLength);
 		g2.setColor(new Color(0.0f, 0.0f, 1.0f, 0.2f));

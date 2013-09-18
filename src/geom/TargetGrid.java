@@ -1,5 +1,7 @@
 package geom;
 
+import game.Action;
+
 import java.awt.geom.Point2D;
 
 /**
@@ -105,7 +107,7 @@ public class TargetGrid {
 	 * @return the action code for a movement from the start cell to the end
 	 *         cell.
 	 */
-	public int encodeAction(GridCell start, GridCell end) {
+	public int encodeFromIndices(GridCell start, GridCell end) {
 		int rowDelta = end.getRow() - start.getRow();
 		int colDelta = end.getCol() - start.getCol();
 		return rowDelta * 3 + colDelta + 4;
@@ -121,7 +123,7 @@ public class TargetGrid {
 	 *            the action to take.
 	 * @return the end cell after taking the given action from the start cell.
 	 */
-	public GridCell decodeAction(GridCell start, int actionCode) {
+	public GridCell decodeFromIndices(GridCell start, int actionCode) {
 		return new GridCell(start.getRow() + actionCode / 3 - 1, start.getCol()
 				+ actionCode % 3 - 1);
 	}
@@ -201,7 +203,7 @@ public class TargetGrid {
 	 *            the point to locate.
 	 * @return the grid cell containing the given point.
 	 */
-	public GridCell getIndex(Point2D pos) {
+	public GridCell getCell(Point2D pos) {
 		int row = (int) ((1 - pos.getY()) * gridSize);
 		int col = (int) (pos.getX() * gridSize);
 		return new GridCell(row, col);
@@ -217,5 +219,18 @@ public class TargetGrid {
 	public Point2D getCentre(GridCell cell) {
 		return new Point2D.Double(0 + (cell.getCol() + 0.5) / gridSize, 1
 				- (cell.getRow() + 0.5) / gridSize);
+	}
+
+	/**
+	 * Returns the action code corresponding to the given action.
+	 * 
+	 * @param a
+	 *            the action to encode.
+	 * @return the action code corresponding to the given action.
+	 */
+	public int encodeAction(Action a) {
+		GridCell startCell = getCell(a.getStartState().getPosition());
+		GridCell endCell = getCell(a.getResultingState().getPosition());
+		return encodeFromIndices(startCell, endCell);
 	}
 }

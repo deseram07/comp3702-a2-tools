@@ -120,10 +120,16 @@ public class Tracker implements Agent {
 	 * This is always even because odd-numbered turns are taken by the targets.
 	 * 
 	 * @param previousResult the result of the previous attempted action. This
-	 * contains three components:
-	 * previousResult.getAction() - the action that resulted after random
-	 * 		divergence was applied to your desired action.
-	 * previousResult.getNewState() - the state this resulted in, which is
+	 * contains four components:
+	 * previousResult.getDesiredAction() - the action that was previously
+	 * 		attempted by this tracker, or null if there is no such action.
+	 *		In other words, this is the output from the last time this
+	 * 		method was called, or null if this is the first time this method
+	 * 		is being called.
+	 * previousResult.getDivergedAction() - the action that resulted after random
+	 * 		divergence was applied to your desired action, or null if there was 
+	 * 		no such action.
+	 * previousResult.getResultingState() - the state this resulted in, which is
 	 * 		also the current state of your tracker.
 	 * previousResult.getReward() - the reward obtained for the previous
 	 * action.
@@ -146,14 +152,15 @@ public class Tracker implements Agent {
 	 */
 	public TrackerAction getAction(int turnNo, ActionResult previousResult,
 			double[] scores, List<Percept> newPercepts) {
-		AgentState myState = previousResult.getNewState();
+		AgentState myState = previousResult.getResultingState();
+		
 		// TODO Write this method!
-		System.out.println(newPercepts);
-
+		
+		// System.out.println(newPercepts);
 		TargetGrid grid = targetPolicy.getGrid();
-		TargetGrid.GridCell current = grid.getIndex(myState.getPosition());
+		TargetGrid.GridCell current = grid.getCell(myState.getPosition());
 		TargetGrid.GridCell next = targetPolicy.getNextIndex(current);
-		double heading = grid.getHeading(grid.encodeAction(current, next));
-		return new TrackerAction(myState, heading, 100);
+		double heading = grid.getHeading(grid.encodeFromIndices(current, next));
+		return new TrackerAction(myState, heading, 1.0 / grid.getGridSize());
 	}
 }

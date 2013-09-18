@@ -3,19 +3,18 @@ package divergence;
 import game.Action;
 
 /**
- * Represents the divergence between the action an agent desires to make and the
- * actual movement that occurs in the workspace.
+ * Diverges an action.
  * 
  * @author lackofcheese
  * 
  */
 public interface ActionDivergence {
 	/**
-	 * Returns an action with divergence applied to it.
+	 * Returns a diverged action.
 	 * 
 	 * @param action
-	 *            the attempted action.
-	 * @return an action with divergence applied to it.
+	 *            the action to modify.
+	 * @return a diverged action.
 	 */
 	public Action divergeAction(Action action);
 }

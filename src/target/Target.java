@@ -30,7 +30,7 @@ public class Target implements Agent {
 	@Override
 	public Action getAction(int turnNo, ActionResult previousResult,
 			double[] scores, List<Percept> newPercepts) {
-		return policy.getAction(previousResult.getNewState());
+		return policy.getAction(previousResult.getResultingState());
 	}
 
 	/**

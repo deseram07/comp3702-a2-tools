@@ -1,6 +1,6 @@
 package geom;
 
-import java.awt.geom.Point2D;
+import game.Action;
 
 /**
  * Represents a square grid over the workspace.
@@ -103,10 +103,8 @@ public class TrackerGrid {
 	 * @return the action code for a movement from the centre cell to the end
 	 *         cell.
 	 */
-	public int encodeAction(GridCell end) {
-		int rowDelta = end.getRow() - 2;
-		int colDelta = end.getCol() - 2;
-		return rowDelta * 5 + colDelta + 12;
+	public int encodeFromCell(GridCell end) {
+		return end.getRow() * 5 + end.getCol() + 12;
 	}
 
 	/**
@@ -117,46 +115,63 @@ public class TrackerGrid {
 	 *            the action to take.
 	 * @return the end cell after taking the given action from the centre cell.
 	 */
-	public GridCell decodeAction(int actionCode) {
+	public GridCell decodeToCell(int actionCode) {
 		return new GridCell(actionCode / 5 - 2, actionCode % 5 - 2);
 	}
 
 	/**
 	 * Returns the grid cell containing the given point.
 	 * 
-	 * @param pos
-	 *            the point to locate.
+	 * @param position
+	 *            the point to locate, as a displacement vector.
 	 * @return the grid cell containing the given point.
 	 */
-	public GridCell getIndex(Point2D pos) {
-		int col = (int) Math.floor(+pos.getX() / cellWidth + 0.5);
-		int row = (int) Math.floor(-pos.getY() / cellWidth + 0.5);
+	public GridCell getCell(Vector2D position) {
+		int col = (int) Math.floor(+position.getX() / cellWidth + 0.5);
+		int row = (int) Math.floor(-position.getY() / cellWidth + 0.5);
 		return new GridCell(row, col);
 	}
 
 	/**
-	 * Returns the centre point of the given cell.
+	 * Returns the centre point of the given cell, as a displacement vector.
 	 * 
 	 * @param cell
 	 *            the cell.
 	 * @return the centre point of the given cell.
 	 */
-	public Point2D getCentre(GridCell cell) {
-		return new Point2D.Double(+cell.getCol() * cellWidth, -cell.getRow()
-				* cellWidth);
+	public Vector2D getCentre(GridCell cell) {
+		return new Vector2D(new double [] {
+				+cell.getCol() * cellWidth,
+				-cell.getRow() * cellWidth
+				
+		});
 	}
 
 	/**
-	 * Returns a random point in the given cell.
+	 * Returns a random point in the given cell, as a displacement vector.
 	 * 
 	 * @param cell
 	 *            the cell.
 	 * @return a random point in the given cell.
 	 */
-	public Point2D getRandomPoint(GridCell cell) {
+	public Vector2D getRandomPoint(GridCell cell) {
 		double randX = Math.random() - 0.5;
 		double randY = Math.random() - 0.5;
-		return new Point2D.Double(+(cell.getCol() + randX) * cellWidth,
-				-(cell.getRow() + randY) * cellWidth);
+		return new Vector2D(new double [] {
+				+(cell.getCol() + randX) * cellWidth,
+				-(cell.getRow() + randY) * cellWidth
+		});
+	}
+
+	/**
+	 * Returns the action code corresponding to the given action.
+	 * 
+	 * @param a
+	 *            the action to encode.
+	 * @return the action code corresponding to the given action.
+	 */
+	public int encodeAction(Action a) {
+		Vector2D displacement = a.getDisplacement();
+		return encodeFromCell(getCell(displacement));
 	}
 }

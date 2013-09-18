@@ -159,6 +159,15 @@ public class Action {
 	}
 
 	/**
+	 * Returns the displacement vector for this action.
+	 * 
+	 * @return the displacement vector for this action.
+	 */
+	public Vector2D getDisplacement() {
+		return new Vector2D(distance, heading);
+	}
+
+	/**
 	 * Returns the initial state before this action.
 	 * 
 	 * @return the initial state before this action.

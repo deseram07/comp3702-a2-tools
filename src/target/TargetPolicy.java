@@ -74,21 +74,22 @@ public class TargetPolicy {
 				for (int j = 0; j < gridSize; j++) {
 					GridCell current = grid.new GridCell(i, j);
 					int actionCode = s.nextInt();
-					GridCell target = grid.decodeAction(current, actionCode);
+					GridCell target = grid.decodeFromIndices(current,
+							actionCode);
 					policyMap.put(current, target);
 				}
 				s.close();
 			}
 		} catch (InputMismatchException e) {
 			throw new IOException(String.format(
-					"Invalid number format on line %d: %s", lineNo,
+					"Invalid number format on line %d of %s: %s", lineNo, path,
 					e.getMessage()));
 		} catch (NoSuchElementException e) {
-			throw new IOException(String.format("Not enough tokens on line %d",
-					lineNo));
+			throw new IOException(String.format("Not enough tokens on line %d of %s",
+					lineNo, path));
 		} catch (NullPointerException e) {
 			throw new IOException(String.format(
-					"Line %d expected, but file ended.", lineNo));
+					"Line %d expected, but file %s ended.", lineNo, path));
 		} finally {
 			input.close();
 		}
@@ -131,7 +132,7 @@ public class TargetPolicy {
 	 * @return the proper action for the given state.
 	 */
 	public Action getAction(AgentState currentState) {
-		GridCell startIndex = grid.getIndex(currentState.getPosition());
+		GridCell startIndex = grid.getCell(currentState.getPosition());
 		GridCell endIndex = policyMap.get(startIndex);
 		if (endIndex.equals(startIndex)) {
 			return new Action(currentState);
