@@ -72,6 +72,21 @@ public class GeomTools {
 				.getPosition());
 	}
 
+	/**
+	 * Returns the arc swept in turning from one heading to another.
+	 * 
+	 * @param centre
+	 *            the position of the agent.
+	 * @param startHeading
+	 *            the initial heading.
+	 * @param endHeading
+	 *            the final heading.
+	 * @param armLength
+	 *            the camera arm length.
+	 * @param reverse
+	 *            true iff you want to turn in the reverse (longer) direction.
+	 * @return the arc swept in turning from one heading to another.
+	 */
 	public static Arc2D getTurningArc(Point2D centre, double startHeading,
 			double endHeading, double armLength, boolean reverse) {
 		Arc2D arc = new Arc2D.Double();
@@ -94,9 +109,12 @@ public class GeomTools {
 	 * Returns the shape swept in moving between the given positions.
 	 * 
 	 * @param startPos
+	 *            the starting position.
 	 * @param endPos
+	 *            the ending position.
 	 * @param armLength
-	 * @return
+	 *            the length of the camera arm.
+	 * @return the shape swept in moving between the given positions.
 	 */
 	public static Shape getMoveSweep(Point2D startPos, Point2D endPos,
 			double armLength) {
@@ -105,14 +123,13 @@ public class GeomTools {
 		double heading = disp.getDirection();
 		Rectangle2D rec = new Rectangle2D.Double(startPos.getX(),
 				startPos.getY(), armLength, distance);
-		System.out.println(rec);
 		AffineTransform tf = AffineTransform.getRotateInstance(heading
 				- Math.PI / 2, startPos.getX(), startPos.getY());
 		return tf.createTransformedShape(rec);
 	}
 
 	/**
-	 * Return true if turning from the initial heading to the final heading at
+	 * Returns true iff turning from the initial heading to the final heading at
 	 * the given position is valid.
 	 * 
 	 * @param centre
@@ -125,7 +142,8 @@ public class GeomTools {
 	 *            the length of the camera arm.
 	 * @param obstacles
 	 *            the list of obstacles to test against.
-	 * @return true
+	 * @return true iff turning from the initial heading to the final heading at
+	 *         the given position is valid.
 	 */
 	public static boolean canTurn(Point2D centre, double startHeading,
 			double endHeading, double armLength, List<RectRegion> obstacles) {

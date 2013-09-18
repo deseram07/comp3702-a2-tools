@@ -45,6 +45,10 @@ public class Tracker implements Agent {
 	/**
 	 * Constructs a tracker with the given parameters.
 	 * 
+	 * This gives your tracker all of the information it has about the initial
+	 * state of the game, including very important aspects such as the target's
+	 * policy, which is known to the tracker.
+	 * 
 	 * @param numTargets
 	 *            the number of targets.
 	 * @param targetPolicy
@@ -94,23 +98,57 @@ public class Tracker implements Agent {
 
 	/**
 	 * Initialises the tracker's policy.
+	 * 
+	 * This handles any setup your agent requires for its policy before the game
+	 * actually starts. If you don't require any setup, leave this method blank.
 	 */
 	public void initialise() {
-		/*
-		 * TODO Write this method! This handles any setup your agent requires
-		 * for its policy before the game actually starts. If you don't have any
-		 * setup, leave this method blank.
-		 */
+		// TODO Write this method!
 	}
 
 	@Override
+	/**
+	 * This method is used by the game to ask your tracker for an action
+	 * when it is the tracker's turn.
+	 * 
+	 * It also passes your tracker all of the information it is allowed
+	 * to have about the changing of the state of the game. In particular,
+	 * this includes the following:
+	 * 
+	 * @param turnNo the current turn. This is the turn number within the game;
+	 * this will be 0 for your very first turn, then 2, then 4, etc. 
+	 * This is always even because odd-numbered turns are taken by the targets.
+	 * 
+	 * @param previousResult the result of the previous attempted action. This
+	 * contains three components:
+	 * previousResult.getAction() - the action that resulted after random
+	 * 		divergence was applied to your desired action.
+	 * previousResult.getNewState() - the state this resulted in, which is
+	 * 		also the current state of your tracker.
+	 * previousResult.getReward() - the reward obtained for the previous
+	 * action.
+	 * 
+	 * @param scores the scores accrued by each individual player.
+	 * Note that player #0 is the tracker, and players #1, #2, etc. are
+	 * targets. 
+	 * In order to win the game, your score will need to be higher than
+	 * the total of all of the target scores.
+	 * Normally numTargets = 1, so scores will only consist of two numbers.
+	 * 
+	 * @param newPercepts any percepts obtained by your tracker since
+	 * its last turn.
+	 * For example, if it's currently turn #2, this will contain any percepts
+	 * from turns #0 and #1.
+	 * The percept consists of three components:
+	 * percept.getAgentNo() - the agent that was seen.
+	 * percept.getTurnNo() - the turn after which it was seen.
+	 * percept.getAgentState() - the state the agent was seen in.
+	 */
 	public TrackerAction getAction(int turnNo, ActionResult previousResult,
 			double[] scores, List<Percept> newPercepts) {
-		/*
-		 * TODO Write this method! This is the one that defines how your agent
-		 * will respond to any given situation.
-		 */
 		AgentState myState = previousResult.getNewState();
+		// TODO Write this method!
+		System.out.println(newPercepts);
 		double heading = targetPolicy.getAction(myState).getHeading();
 		return new TrackerAction(myState, heading, 100);
 	}

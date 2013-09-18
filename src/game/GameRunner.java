@@ -576,11 +576,11 @@ public class GameRunner {
 		}
 
 		// Diverge the action.
-		action = cs.playerDivs[playerNo].divergeAction(action);
+		Action divergedAction = cs.playerDivs[playerNo].divergeAction(action);
 
 		// Simulate the action.
 		ActionResult result;
-		result = simulateAction(cs.turnNo, playerNo, action);
+		result = simulateAction(cs.turnNo, playerNo, divergedAction);
 		cs.playerScores[playerNo] += result.getReward();
 
 		// If a target reached the goal, the game ends.
@@ -797,7 +797,8 @@ public class GameRunner {
 	 */
 	public void writeResults(String outputPath) throws IOException {
 		FileWriter writer = new FileWriter(outputPath);
-		writer.write(actionResultSequence.size() + lineSep);
+		writer.write(cs.turnNo + lineSep);
+		writer.write(numTargets + lineSep);
 		writer.write(trackerInitialState + lineSep);
 		for (AgentState as : targetInitialStates) {
 			writer.write(as + lineSep);
@@ -845,10 +846,12 @@ public class GameRunner {
 		 * System.out.println(sb); } System.out.println();
 		 */
 
-		try {
-			writeResults(outputPath);
-		} catch (IOException e) {
-			System.err.println("Failed to write output: " + e.getMessage());
+		if (outputPath != null) {
+			try {
+				writeResults(outputPath);
+			} catch (IOException e) {
+				System.err.println("Failed to write output: " + e.getMessage());
+			}
 		}
 		return winResult;
 	}
@@ -885,7 +888,7 @@ public class GameRunner {
 			System.err.println("Failed to load setup file: " + e.getMessage());
 			return;
 		}
-		int numGames = 1000;
+		int numGames = 1;
 		int numWins = 0;
 		for (int i = 0; i < numGames; i++) {
 			int result = runner.runVerbose(outputFile, false);

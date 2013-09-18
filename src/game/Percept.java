@@ -56,4 +56,10 @@ public class Percept {
 	public AgentState getAgentState() {
 		return agentState;
 	}
+
+	@Override
+	public String toString() {
+		return String.format("Turn %d: Saw agent %d in state %s", turnNo,
+				agentNo, agentState);
+	}
 }

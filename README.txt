@@ -1,5 +1,31 @@
 A framework for COMP3702 Assignment 2, by Dimitri Klimenko (tutor).
 
+(0) Completing the assignment!
+This archive contains the code that implements the game, as well as a
+visualiser to make it easier to view the progress of a game.
+
+Your task is to write the "tracker" package (in the tracker folder),
+which will govern how the tracker behaves within the game. In particular,
+you must complete the Tracker class, which has two crucial methods you
+should implement. You may add methods to the class, but the type signatures
+of the methods already present in that class should remain exactly the same.
+
+In particular, the method Tracker.getAction() method will be called by the
+game in order to ask the tracker for an action every time it's the tracker's
+turn. This method will also be used to pass your tracker the relevant
+information that it has obtained since its previous turn.
+
+On the other hand, the Tracker.initialise() method will handle any setup
+your tracker requires before it can start outputting actions. Please read the
+documentation of these two methods for a more detailed description of how
+they should work.
+
+Feel free to make as many classes as you wish; just make sure they're all
+in the "tracker" package (or subpackages of tracker, if you wish). You may use
+any of the classes in the other packages, but you are not allowed to modify
+them - the assignment submission will consist only of the tracker folder and
+all of its subfolders.
+
 
 (1) Commands and arguments
 The runnable files and their arguments are:
