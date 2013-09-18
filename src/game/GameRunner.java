@@ -17,6 +17,7 @@ import java.util.InputMismatchException;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
+import java.util.Stack;
 
 import divergence.ActionDivergence;
 import divergence.TargetDivergence;
@@ -70,10 +71,10 @@ public class GameRunner {
 	private List<RectRegion> obstacles;
 	/** The goal region for the target(s). */
 	private RectRegion goalRegion;
-	
-	/** 
-	 * The obstacles in the game space, in addition to extra
-	 * obstacles representing the workspace boundaries.
+
+	/**
+	 * The obstacles in the game space, in addition to extra obstacles
+	 * representing the workspace boundaries.
 	 */
 	private List<RectRegion> extendedObstacles;
 
@@ -174,7 +175,7 @@ public class GameRunner {
 				lineNo++;
 				obstacles.add(new RectRegion(line));
 			}
-			
+
 			extendedObstacles = new ArrayList<RectRegion>(obstacles);
 			extendedObstacles.add(new RectRegion(-1, 0, 1, 1));
 			extendedObstacles.add(new RectRegion(1, 0, 1, 1));
@@ -307,11 +308,11 @@ public class GameRunner {
 
 	public class GameState {
 		/** True iff the game is already over in this state. */
-		private boolean gameComplete = false;
+		private boolean gameComplete;
 		/** The turn number of this game. */
 		private int turnNo;
-		/** The player whose turn it is to act. */
-		private int currentPlayer;
+		/** True iff it's the tracker's turn to act. */
+		private boolean isTrackerTurn;
 
 		/** The players in the game. */
 		private Agent[] players;
@@ -330,8 +331,9 @@ public class GameRunner {
 		 * (i.e. just before the 0-th action).
 		 */
 		public GameState() {
+			gameComplete = false;
 			turnNo = 0;
-			currentPlayer = 0;
+			isTrackerTurn = true;
 			trackerPercepts = new ArrayList<Percept>();
 
 			players = new Agent[numTargets + 1];
@@ -377,7 +379,7 @@ public class GameRunner {
 		public GameState(GameState other) {
 			this.gameComplete = other.gameComplete;
 			this.turnNo = other.turnNo;
-			this.currentPlayer = other.currentPlayer;
+			this.isTrackerTurn = other.isTrackerTurn;
 
 			this.players = other.players;
 			this.playerDivs = other.playerDivs;
@@ -408,12 +410,12 @@ public class GameRunner {
 		}
 
 		/**
-		 * Returns the number of the player to act.
+		 * Returns true iff it's the tracker's turn to act.
 		 * 
-		 * @return the number of the player to act.
+		 * @return true iff it's the tracker's turn to act.
 		 */
-		public int getCurrentPlayer() {
-			return currentPlayer;
+		public boolean isTrackerTurn() {
+			return isTrackerTurn;
 		}
 
 		/**
@@ -458,9 +460,9 @@ public class GameRunner {
 	}
 
 	/** The sequence of attempted actions with associated results */
-	private List<ActionResult> actionResultSequence;
+	private Stack<ActionResult[]> actionResultSequence;
 	/** The sequence of states of the game. */
-	private List<GameState> stateSequence;
+	private Stack<GameState> stateSequence;
 	/** The current state of the game. */
 	private GameState cs = null;
 
@@ -477,7 +479,7 @@ public class GameRunner {
 	 * 
 	 * @return the sequence of actions with associated results.
 	 */
-	public List<ActionResult> getActionResultSequence() {
+	public Stack<ActionResult[]> getActionResultSequence() {
 		return actionResultSequence;
 	}
 
@@ -486,7 +488,7 @@ public class GameRunner {
 	 * 
 	 * @return the sequence of game states.
 	 */
-	public List<GameState> getStateSequence() {
+	public Stack<GameState> getStateSequence() {
 		return stateSequence;
 	}
 
@@ -504,8 +506,8 @@ public class GameRunner {
 	 */
 	public void initialise() {
 		cs = new GameState();
-		actionResultSequence = new ArrayList<ActionResult>();
-		stateSequence = new ArrayList<GameState>();
+		actionResultSequence = new Stack<ActionResult[]>();
+		stateSequence = new Stack<GameState>();
 		stateSequence.add(cs);
 	}
 
@@ -522,9 +524,15 @@ public class GameRunner {
 
 		int turnNo = cs.turnNo;
 		while (turnNo > desiredTurnNo) {
-			stateSequence.remove(turnNo);
+			GameState state = stateSequence.pop();
 			turnNo -= 1;
-			actionResultSequence.remove(turnNo);
+			if (state.isTrackerTurn()) {
+				actionResultSequence.pop();
+			} else {
+				for (int i = 0; i < numTargets; i++) {
+					actionResultSequence.pop();
+				}
+			}
 		}
 		cs = stateSequence.get(turnNo);
 	}
@@ -540,55 +548,66 @@ public class GameRunner {
 	}
 
 	/**
-	 * Simulates a single turn of the game.
+	 * Simulates a single turn for a single player.
+	 * 
+	 * @param playerNo
+	 *            the player to simulate a turn for.
 	 */
-	public void simulateTurn() {
-		// Duplicate the state for modification.
-		cs = new GameState(cs);
+	public ActionResult simulatePlayerTurn(int playerNo) {
+		// Default result - information on preceding action not given.
+		ActionResult previousResult = new ActionResult(null, new AgentState(
+				cs.playerStates[playerNo]), 0);
 
-		// Retrieve the last action taken by this player.
-		int previousTurn = cs.turnNo - numTargets - 1;
-		ActionResult previousResult;
-		if (previousTurn >= 0) {
-			previousResult = actionResultSequence.get(previousTurn);
-		} else {
-			previousResult = new ActionResult(null, new AgentState(
-					cs.playerStates[cs.currentPlayer]), 0);
-		}
-
-		// Query the player for an action.
 		Action action;
-		if (cs.currentPlayer == 0) {
-			// Tracker to act.
-
+		if (playerNo == 0) {
+			// Retrieve the result of the previous tracker action, if present.
+			int actionIndex = actionResultSequence.size() - 2;
+			if (actionIndex >= 0) {
+				previousResult = actionResultSequence.get(actionIndex)[0];
+			}
 			// Copy the game's scores to inform the tracker.
 			double[] scores = Arrays.copyOf(cs.playerScores, numTargets + 1);
 			action = cs.players[0].getAction(cs.turnNo, previousResult, scores,
 					new ArrayList<Percept>(cs.trackerPercepts));
 			cs.trackerPercepts.clear();
 		} else {
-			// Target to act.
-			action = cs.players[cs.currentPlayer].getAction(cs.turnNo,
-					previousResult, null, null);
+			action = cs.players[playerNo].getAction(cs.turnNo, previousResult,
+					null, null);
 		}
 
 		// Diverge the action.
-		action = cs.playerDivs[cs.currentPlayer].divergeAction(action);
+		action = cs.playerDivs[playerNo].divergeAction(action);
 
 		// Simulate the action.
 		ActionResult result;
-		result = simulateAction(cs.turnNo, cs.currentPlayer, action);
-		cs.playerScores[cs.currentPlayer] += result.getReward();
-		actionResultSequence.add(result);
+		result = simulateAction(cs.turnNo, playerNo, action);
+		cs.playerScores[playerNo] += result.getReward();
 
 		// If a target reached the goal, the game ends.
-		if (cs.currentPlayer != 0
-				&& isWithinGoal(cs.playerStates[cs.currentPlayer])) {
+		if (playerNo != 0 && isWithinGoal(cs.playerStates[playerNo])) {
 			cs.gameComplete = true;
 		}
+		return result;
+	}
 
+	/**
+	 * Simulates a single turn of the game.
+	 */
+	public void simulateTurn() {
+		// Duplicate the state for modification.
+		cs = new GameState(cs);
+		if (cs.isTrackerTurn) {
+			ActionResult result = simulatePlayerTurn(0);
+			actionResultSequence.add(new ActionResult[] { result });
+		} else {
+			ActionResult[] results = new ActionResult[numTargets];
+			for (int i = 1; i <= numTargets; i++) {
+				results[i - 1] = simulatePlayerTurn(i);
+			}
+			actionResultSequence.add(results);
+		}
 		cs.turnNo += 1;
-		cs.currentPlayer = (cs.currentPlayer + 1) % (numTargets + 1);
+		cs.isTrackerTurn = !cs.isTrackerTurn;
 		stateSequence.add(cs);
 	}
 
@@ -607,33 +626,37 @@ public class GameRunner {
 	public ActionResult simulateAction(int turnNo, int playerNo, Action action) {
 		boolean isHQCall = false;
 		double reward = 0;
-		
+
 		// Execute any movement or camera adjustment.
 		if (action.isMovement()) {
 			simulateMovement(turnNo, playerNo, action);
 		} else if (action.isCameraAdjustment()) {
 			simulateCameraAdjustment(turnNo, playerNo, action);
 		}
-		
+
 		// Check whether this is an HQ call, and update the reward if so.
 		if (playerNo == 0) {
-			TrackerAction trackerAction = (TrackerAction)action;
+			TrackerAction trackerAction = (TrackerAction) action;
 			if (trackerAction.isHQCall()) {
 				isHQCall = true;
 				reward -= 5;
 			}
 		}
-		
+
 		// Check whether the tracker and target see each other.
 		if (playerNo == 0) {
 			// Evaluate the tracker's scoring.
 			for (int otherNo = 1; otherNo <= numTargets; otherNo++) {
-				boolean canSee = GeomTools.canSee(cs.playerStates[playerNo], cs.playerStates[otherNo], trackerSensingParams, obstacles, MAX_SIGHT_DISTANCE_ERROR, NUM_CAMERA_ARM_STEPS);
+				boolean canSee = GeomTools.canSee(cs.playerStates[playerNo],
+						cs.playerStates[otherNo], trackerSensingParams,
+						obstacles, MAX_SIGHT_DISTANCE_ERROR,
+						NUM_CAMERA_ARM_STEPS);
 				if (canSee) {
 					// Reward for seeing the target.
 					reward += 1;
 				}
-				// If we saw the target or called HQ, we obtain a percept of the target's state.
+				// If we saw the target or called HQ, we obtain a percept of the
+				// target's state.
 				if (canSee || isHQCall) {
 					cs.trackerPercepts.add(new Percept(turnNo, otherNo,
 							new AgentState(cs.playerStates[otherNo])));
@@ -641,11 +664,15 @@ public class GameRunner {
 			}
 		} else {
 			// If the target sees the tracker, the target gets rewarded.
-			if (GeomTools.canSee(cs.playerStates[playerNo], cs.playerStates[0], targetSensingParams, obstacles, MAX_SIGHT_DISTANCE_ERROR, NUM_CAMERA_ARM_STEPS)) {
+			if (GeomTools.canSee(cs.playerStates[playerNo], cs.playerStates[0],
+					targetSensingParams, obstacles, MAX_SIGHT_DISTANCE_ERROR,
+					NUM_CAMERA_ARM_STEPS)) {
 				reward += 1;
 			}
 			// The tracker sees the target -> percept but no reward.
-			if (GeomTools.canSee(cs.playerStates[0], cs.playerStates[playerNo], trackerSensingParams, obstacles, MAX_SIGHT_DISTANCE_ERROR, NUM_CAMERA_ARM_STEPS)) {
+			if (GeomTools.canSee(cs.playerStates[0], cs.playerStates[playerNo],
+					trackerSensingParams, obstacles, MAX_SIGHT_DISTANCE_ERROR,
+					NUM_CAMERA_ARM_STEPS)) {
 				cs.trackerPercepts.add(new Percept(turnNo, playerNo,
 						new AgentState(cs.playerStates[playerNo])));
 			}
@@ -663,11 +690,11 @@ public class GameRunner {
 	 * @param action
 	 *            the action taken.
 	 */
-	public void simulateCameraAdjustment(int turnNo, int playerNo,
-			Action action) {
+	public void simulateCameraAdjustment(int turnNo, int playerNo, Action action) {
 		AgentState startState = action.getStartState();
 		// If the action is invalid, ignore it.
-		if (!startState.hasCamera() || !startState.equals(cs.playerStates[playerNo])) {
+		if (!startState.hasCamera()
+				|| !startState.equals(cs.playerStates[playerNo])) {
 			return;
 		}
 		double armLength = action.getResultingState().getCameraArmLength();
@@ -679,15 +706,18 @@ public class GameRunner {
 			armLength = maxLength;
 		}
 		Point2D playerPos = startState.getPosition();
-		Point2D cameraPos = new Vector2D(armLength, startState.getHeading() - Math.PI/2).addedTo(playerPos);
+		Point2D cameraPos = new Vector2D(armLength, startState.getHeading()
+				- Math.PI / 2).addedTo(playerPos);
 		Line2D.Double playerLine = new Line2D.Double(playerPos, cameraPos);
-		// If the new camera arm length causes collision, don't update the state.
+		// If the new camera arm length causes collision, don't update the
+		// state.
 		if (!GeomTools.isCollisionFree(playerLine, extendedObstacles)) {
 			return;
 		}
-	
+
 		// Adjustment successful - update the state.
-		AgentState resultingState = new AgentState(startState.getPosition(),startState.getHeading(),true,armLength);
+		AgentState resultingState = new AgentState(startState.getPosition(),
+				startState.getHeading(), true, armLength);
 		cs.playerStates[playerNo] = resultingState;
 	}
 
@@ -717,23 +747,27 @@ public class GameRunner {
 		double distance = action.getDistance();
 		boolean hasCamera = endState.hasCamera();
 		double armLength = endState.getCameraArmLength();
-		
+
 		// If the action includes an impossible turn, ignore the action.
-		if (hasCamera && (startHeading != endHeading) && 
-				!GeomTools.canTurn(startPos, startHeading, endHeading, armLength, extendedObstacles)) {
+		if (hasCamera
+				&& (startHeading != endHeading)
+				&& !GeomTools.canTurn(startPos, startHeading, endHeading,
+						armLength, extendedObstacles)) {
 			return;
 		}
-		
+
 		// If a linear component is involved, test it.
 		if (distance != 0) {
-			// Set the distance moved to be the tracker's actual movement distance.
+			// Set the distance moved to be the tracker's actual movement
+			// distance.
 			if (playerNo == 0 && distance != 0) {
 				distance = trackerMoveDistance;
 				endPos = new Vector2D(distance, endHeading).addedTo(startPos);
 			}
-			
+
 			// If the movement is invalid, ignore the whole action.
-			if (!GeomTools.canMove(startPos, endPos, hasCamera, armLength, extendedObstacles)) {
+			if (!GeomTools.canMove(startPos, endPos, hasCamera, armLength,
+					extendedObstacles)) {
 				return;
 			}
 		}
@@ -768,12 +802,14 @@ public class GameRunner {
 		for (AgentState as : targetInitialStates) {
 			writer.write(as + lineSep);
 		}
-		for (ActionResult result : actionResultSequence) {
-			if (result.getAction() == null) {
-				writer.write("-" + lineSep);
-			} else {
-				writer.write(result.getNewState() + " " + result.getReward()
-						+ lineSep);
+		for (ActionResult[] results : actionResultSequence) {
+			for (ActionResult result : results) {
+				if (result.getAction() == null) {
+					writer.write("-" + lineSep);
+				} else {
+					writer.write(result.getNewState() + " "
+							+ result.getReward() + lineSep);
+				}
 			}
 		}
 		writer.close();
@@ -783,8 +819,8 @@ public class GameRunner {
 	public int runVerbose(String outputPath, boolean verbose) {
 		initialise();
 		runFull();
-		int trackerScore = (int)cs.getTrackerScore();
-		int targetScore = (int)cs.getTargetScore();
+		int trackerScore = (int) cs.getTrackerScore();
+		int targetScore = (int) cs.getTargetScore();
 		int winResult;
 		String formatString;
 		if (trackerScore > targetScore) {
@@ -798,22 +834,17 @@ public class GameRunner {
 			formatString = "Tracker loses %d-%d";
 		}
 		if (verbose) {
-			System.out.println(String.format(formatString, trackerScore, targetScore));
+			System.out.println(String.format(formatString, trackerScore,
+					targetScore));
 		}
 		/*
-		double[] scores = cs.getPlayerScores();
-		if (numTargets > 1) {
-			System.out.print("Individual target scores: ");
-			StringBuilder sb = new StringBuilder();
-			for (int i = 1; i <= numTargets; i++) {
-				double score = scores[i];
-				sb.append(String.format("%d ", (int) score));
-			}
-			System.out.println(sb);
-		}
-		System.out.println();
-		*/
-		
+		 * double[] scores = cs.getPlayerScores(); if (numTargets > 1) {
+		 * System.out.print("Individual target scores: "); StringBuilder sb =
+		 * new StringBuilder(); for (int i = 1; i <= numTargets; i++) { double
+		 * score = scores[i]; sb.append(String.format("%d ", (int) score)); }
+		 * System.out.println(sb); } System.out.println();
+		 */
+
 		try {
 			writeResults(outputPath);
 		} catch (IOException e) {
@@ -862,6 +893,7 @@ public class GameRunner {
 				numWins += 1;
 			}
 		}
-		System.out.println(String.format("Tracker won %d of %d games.", numWins, numGames));
+		System.out.println(String.format("Tracker won %d of %d games.",
+				numWins, numGames));
 	}
 }

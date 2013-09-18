@@ -15,7 +15,7 @@ public class Action {
 	private boolean isMovement;
 	/** Whether this action is a camera adjustment. */
 	private boolean isCameraAdjustment;
-	
+
 	/** The new heading for the agent, in radians. */
 	private double heading;
 	/** The distance to travel. */
@@ -35,37 +35,37 @@ public class Action {
 	public Action(AgentState startState) {
 		this.isMovement = false;
 		this.isCameraAdjustment = false;
-		
+
 		this.startState = startState;
 		this.heading = startState.getHeading();
 		this.distance = 0;
 		this.resultingState = startState;
 	}
-	
+
 	/**
-	 * A camera adjustment action - keep position and heading, but 
-	 * change the length of the camera arm.
+	 * A camera adjustment action - keep position and heading, but change the
+	 * length of the camera arm.
 	 * 
-	 * @param startState the starting state.
-	 * @param newCameraArmLength the new camera arm length.
+	 * @param startState
+	 *            the starting state.
+	 * @param newCameraArmLength
+	 *            the new camera arm length.
 	 */
 	public Action(AgentState startState, double newCameraArmLength) {
 		this.isMovement = false;
 		this.isCameraAdjustment = true;
-		
+
 		this.startState = startState;
 		this.heading = startState.getHeading();
 		this.distance = 0;
-		this.resultingState = new AgentState(
-				startState.getPosition(),
-				startState.getHeading(),
-				startState.hasCamera(),
+		this.resultingState = new AgentState(startState.getPosition(),
+				startState.getHeading(), startState.hasCamera(),
 				newCameraArmLength);
 	}
 
 	/**
-	 * A movement with the given heading and distance. To stay in the same
-	 * place while changing heading, simply use a distance of 0.
+	 * A movement with the given heading and distance. To stay in the same place
+	 * while changing heading, simply use a distance of 0.
 	 * 
 	 * @param startState
 	 *            the starting state.
@@ -77,7 +77,7 @@ public class Action {
 	public Action(AgentState startState, double heading, double distance) {
 		this.isMovement = true;
 		this.isCameraAdjustment = false;
-		
+
 		this.startState = startState;
 		this.heading = heading;
 		this.distance = distance;
@@ -106,7 +106,7 @@ public class Action {
 	public Action(AgentState startState, Point2D desiredPos) {
 		this.isCameraAdjustment = false;
 		this.isMovement = true;
-		
+
 		this.startState = startState;
 		Point2D startPos = startState.getPosition();
 		if (startPos.equals(desiredPos)) {
@@ -124,6 +124,7 @@ public class Action {
 
 	/**
 	 * Returns true iff this action involves a heading change or movement.
+	 * 
 	 * @return true iff this action involves a heading change or movement.
 	 */
 	public boolean isMovement() {
@@ -132,6 +133,7 @@ public class Action {
 
 	/**
 	 * Returns true iff this action is a camera adjustment.
+	 * 
 	 * @return true iff this action is a camera adjustment.
 	 */
 	public boolean isCameraAdjustment() {

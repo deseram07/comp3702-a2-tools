@@ -1,10 +1,12 @@
 package visualiser;
 
+import game.Action;
+import game.ActionResult;
 import game.AgentState;
 import game.GameRunner;
 import game.RectRegion;
 import game.SensingParameters;
-import geom.Vector2D;
+import geom.GeomTools;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -128,7 +130,8 @@ public class VisualisationPanel extends JComponent {
 			animationTimer.stop();
 			visualiser.setPlaying(false);
 		} else {
-			if (gameRunner.gameComplete() && frameNumber == gameRunner.getTurnNo()) {
+			if (gameRunner.gameComplete()
+					&& frameNumber == gameRunner.getTurnNo()) {
 				gotoFrame(0);
 			}
 			animationTimer.start();
@@ -164,11 +167,8 @@ public class VisualisationPanel extends JComponent {
 		Color c;
 
 		Point2D agentPos = state.getPosition();
-		Point2D viewPos = agentPos;
-		if (sp.hasCamera()) {
-			double armDirection = state.getHeading() - Math.PI / 2;
-			double armLength = state.getCameraArmLength();
-			viewPos = new Vector2D(armLength, armDirection).addedTo(agentPos);
+		Point2D viewPos = GeomTools.calculateViewPosition(state);
+		if (state.hasCamera()) {
 			Line2D line = new Line2D.Double(agentPos, viewPos);
 			c = g2.getColor();
 			g2.setColor(playerColor);
@@ -210,6 +210,31 @@ public class VisualisationPanel extends JComponent {
 		}
 	}
 
+	public void paintAction(Graphics2D g2, ActionResult result) {
+		Action action = result.getAction();
+		if (!action.getStartState().hasCamera()) {
+			return;
+		}
+		double startHeading = action.getStartState().getHeading();
+		Point2D startPos = action.getStartState().getPosition();
+		double endHeading = result.getNewState().getHeading();
+		Point2D endPos = result.getNewState().getPosition();
+		double armLength = result.getNewState().getCameraArmLength();
+
+		Shape moveSweep = GeomTools.getMoveSweep(startPos, endPos, armLength);
+		g2.setColor(new Color(0.0f, 0.0f, 1.0f, 0.2f));
+		g2.fill(transform.createTransformedShape(moveSweep));
+
+		Arc2D arc = GeomTools.getTurningArc(startPos, startHeading, endHeading,
+				armLength, false);
+		g2.setColor(new Color(1.0f, 1.0f, 0.0f, 0.2f));
+		g2.fill(transform.createTransformedShape(arc));
+		arc = GeomTools.getTurningArc(startPos, startHeading, endHeading,
+				armLength, true);
+		g2.setColor(new Color(0.0f, 1.0f, 1.0f, 0.2f));
+		g2.fill(transform.createTransformedShape(arc));
+	}
+
 	public void paintComponent(Graphics graphics) {
 		super.paintComponent(graphics);
 		if (!gameRunner.setupLoaded()) {
@@ -221,35 +246,13 @@ public class VisualisationPanel extends JComponent {
 		g2.fillRect(0, 0, getWidth(), getHeight());
 
 		paintGrid(g2);
-
-		/*
-		 * Color c = g2.getColor(); if (frameNumber > 0) { Action a =
-		 * gameRunner.getActionResults().get(frameNumber-1).getAction(); double
-		 * startHeading = a.getStartState().getHeading(); Point2D startPos =
-		 * a.getStartState().getPosition(); double endHeading = a.getHeading();
-		 * Point2D endPos = a.getResultingState().getPosition(); double
-		 * armLength = a.getNewCameraArmLength();
-		 * 
-		 * double distance = startPos.distance(endPos);
-		 * 
-		 * Rectangle2D rec = new Rectangle2D.Double(startPos.getX(),
-		 * startPos.getY(), armLength, distance); AffineTransform tf =
-		 * AffineTransform.getRotateInstance( endHeading - Math.PI / 2,
-		 * startPos.getX(), startPos.getY()); g2.setColor(new Color(1.0f, 0.0f,
-		 * 1.0f, 0.2f)); Shape s = tf.createTransformedShape(rec);
-		 * g2.fill(transform.createTransformedShape(s));
-		 * 
-		 * Arc2D arc = new Arc2D.Double(); double startDeg =
-		 * -Math.toDegrees(startHeading - Math.PI/2); double extentDeg =
-		 * -Math.toDegrees(GeomTools.normaliseAngle(endHeading - startHeading));
-		 * System.out.println(startDeg + " " + extentDeg); g2.setColor(new
-		 * Color(1.0f, 1.0f, 0.0f, 0.2f)); for (int i = 0; i < 2; i++) {
-		 * arc.setArcByCenter(startPos.getX(), startPos.getY(), armLength,
-		 * startDeg, extentDeg, Arc2D.PIE);
-		 * g2.fill(transform.createTransformedShape(arc)); g2.setColor(new
-		 * Color(0.0f, 1.0f, 1.0f, 0.2f)); if (extentDeg <= 0) { extentDeg +=
-		 * 360; } else { extentDeg -= 360; } } } g2.setColor(c);
-		 */
+		// if (frameNumber > 0) {
+		// ActionResult[] results =
+		// gameRunner.getActionResultSequence().get(frameNumber - 1);
+		// if (results.length == 1) {
+		// paintAction(g2, results[0]);
+		// }
+		// }
 
 		List<RectRegion> obstacles = gameRunner.getObstacles();
 		g2.setColor(Color.RED);
@@ -270,8 +273,10 @@ public class VisualisationPanel extends JComponent {
 
 		sp = gameRunner.getTargetSensingParams();
 		for (int i = 1; i < states.length; i++) {
-			paintState(g2, states[i], sp, Color.BLACK, new Color(0.0f, 0.0f,
-					0.0f, 0.2f));
+			float cv = (float) (i - 1) / (states.length - 1);
+			Color playerColor = new Color(cv, cv, cv, 1.0f);
+			Color viewColor = new Color(cv, cv, cv, 0.2f);
+			paintState(g2, states[i], sp, playerColor, viewColor);
 		}
 	}
 }

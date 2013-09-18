@@ -155,14 +155,14 @@ public class Visualiser {
 					return "Score";
 				}
 			}
-			
+
 			if (row == 0) {
 				if (col == 1) {
 					return "Tracker";
 				} else if (col == 2) {
 					return "Target total";
 				} else {
-					return "Target #" + (col-2);
+					return "Target #" + (col - 2);
 				}
 			} else {
 				if (col == 1) {
@@ -170,7 +170,7 @@ public class Visualiser {
 				} else if (col == 2) {
 					return vp.getCurrentState().getTargetScore();
 				} else {
-					return vp.getCurrentState().getPlayerScores()[col-2];
+					return vp.getCurrentState().getPlayerScores()[col - 2];
 				}
 			}
 		}
@@ -543,7 +543,7 @@ public class Visualiser {
 		boolean canForward = vp.getFrameNumber() < gameRunner.getTurnNo();
 		forwardButton.setEnabled(canForward);
 		forwardItem.setEnabled(canForward);
-		
+
 		boolean canStep = (!gameRunner.gameComplete() || canForward);
 		stepButton.setEnabled(canStep);
 		stepItem.setEnabled(canStep);
@@ -554,11 +554,10 @@ public class Visualiser {
 			infoLabel.setText("No problem to display.");
 		} else if (vp.getCurrentState().isGameComplete()) {
 			infoLabel.setText("Game complete!");
-		} else if (vp.getCurrentState().getCurrentPlayer() == 0) {
+		} else if (vp.getCurrentState().isTrackerTurn()) {
 			infoLabel.setText("Tracker to act.");
 		} else {
-			int player = vp.getCurrentState().getCurrentPlayer();
-			infoLabel.setText("Target #" + player + " to act.");
+			infoLabel.setText("Targets to act.");
 		}
 	}
 
