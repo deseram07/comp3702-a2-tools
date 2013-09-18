@@ -1,7 +1,6 @@
 package game;
 
 import geom.GeomTools;
-import geom.Vector2D;
 
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
@@ -22,8 +21,8 @@ import java.util.Stack;
 import divergence.ActionDivergence;
 import divergence.TargetDivergence;
 import divergence.TargetMotionHistory;
+import divergence.TrackerDivergence;
 import divergence.TrackerMotionHistory;
-import divergence.ZeroDivergence;
 import target.Target;
 import target.TargetPolicy;
 import tracker.Tracker;
@@ -346,7 +345,7 @@ public class GameRunner {
 				playerScores[i] = 0;
 				playerStates[i] = targetInitialStates.get(i - 1);
 			}
-			playerDivs[0] = new ZeroDivergence();
+			playerDivs[0] = new TrackerDivergence(trackerMoveDistance);
 			playerScores[0] = 0;
 			playerStates[0] = trackerInitialState;
 
@@ -697,27 +696,32 @@ public class GameRunner {
 				|| !startState.equals(cs.playerStates[playerNo])) {
 			return;
 		}
-		double armLength = action.getResultingState().getCameraArmLength();
+		AgentState resultingState = action.getResultingState();
+		double armLength = resultingState.getCameraArmLength();
 		double minLength = trackerSensingParams.getMinLength();
 		double maxLength = trackerSensingParams.getMaxLength();
 		if (armLength < minLength) {
 			armLength = minLength;
+			resultingState = new AgentState(startState.getPosition(),
+					startState.getHeading(), true, armLength);
 		} else if (armLength > maxLength) {
 			armLength = maxLength;
+			resultingState = new AgentState(startState.getPosition(),
+					startState.getHeading(), true, armLength);
 		}
-		Point2D playerPos = startState.getPosition();
-		Point2D cameraPos = new Vector2D(armLength, startState.getHeading()
-				- Math.PI / 2).addedTo(playerPos);
-		Line2D.Double playerLine = new Line2D.Double(playerPos, cameraPos);
-		// If the new camera arm length causes collision, don't update the
-		// state.
-		if (!GeomTools.isCollisionFree(playerLine, extendedObstacles)) {
-			return;
+
+		// If we are lengthening the camera arm, make sure it's valid.
+		if (armLength > startState.getCameraArmLength()) {
+			Point2D playerPos = startState.getPosition();
+			Point2D cameraPos = GeomTools.calculateViewPosition(resultingState);
+			Line2D.Double playerLine = new Line2D.Double(playerPos, cameraPos);
+			// If the new camera arm length causes collision, don't update.
+			if (!GeomTools.isCollisionFree(playerLine, extendedObstacles)) {
+				return;
+			}
 		}
 
 		// Adjustment successful - update the state.
-		AgentState resultingState = new AgentState(startState.getPosition(),
-				startState.getHeading(), true, armLength);
 		cs.playerStates[playerNo] = resultingState;
 	}
 
@@ -756,20 +760,11 @@ public class GameRunner {
 			return;
 		}
 
-		// If a linear component is involved, test it.
-		if (distance != 0) {
-			// Set the distance moved to be the tracker's actual movement
-			// distance.
-			if (playerNo == 0 && distance != 0) {
-				distance = trackerMoveDistance;
-				endPos = new Vector2D(distance, endHeading).addedTo(startPos);
-			}
-
-			// If the movement is invalid, ignore the whole action.
-			if (!GeomTools.canMove(startPos, endPos, hasCamera, armLength,
-					extendedObstacles)) {
-				return;
-			}
+		// If the movement is invalid, ignore the whole action.
+		if (distance != 0
+				&& !GeomTools.canMove(startPos, endPos, hasCamera, armLength,
+						extendedObstacles)) {
+			return;
 		}
 
 		endState = new AgentState(endPos, endHeading, hasCamera, armLength);
@@ -817,6 +812,16 @@ public class GameRunner {
 	}
 
 	/* ---------------------- COMMAND LINE RUNNER ------------------------ */
+	/**
+	 * Runs a game, and outputs the
+	 * 
+	 * @param outputPath
+	 *            the file to output to, or null if no file output is wanted.
+	 * @param verbose
+	 *            true iff System output on the game result is required.
+	 * @return the result of the game: 1 -> Tracker victory. 0 -> Draw. -1 ->
+	 *         Tracker loss.
+	 */
 	public int runVerbose(String outputPath, boolean verbose) {
 		initialise();
 		runFull();

@@ -8,9 +8,9 @@ import java.awt.geom.Point2D;
  * @author lackofcheese
  * 
  */
-public class Grid {
+public class TargetGrid {
 	/** The number of rows and columns. */
-	public int gridSize;
+	private int gridSize;
 
 	/**
 	 * Constructs a square grid with the given number of rows and columns.
@@ -18,7 +18,7 @@ public class Grid {
 	 * @param gridSize
 	 *            the number of rows and columns.
 	 */
-	public Grid(int gridSize) {
+	public TargetGrid(int gridSize) {
 		this.gridSize = gridSize;
 	}
 
@@ -77,6 +77,11 @@ public class Grid {
 		@Override
 		public int hashCode() {
 			return row * 3571 + col;
+		}
+
+		@Override
+		public String toString() {
+			return row + " " + col;
 		}
 	}
 
@@ -210,7 +215,7 @@ public class Grid {
 	 * @return the centre point of the given cell.
 	 */
 	public Point2D getCentre(GridCell cell) {
-		return new Point2D.Double((cell.getCol() + 0.5) / gridSize, 1
+		return new Point2D.Double(0 + (cell.getCol() + 0.5) / gridSize, 1
 				- (cell.getRow() + 0.5) / gridSize);
 	}
 }

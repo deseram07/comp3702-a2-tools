@@ -4,7 +4,7 @@ import java.util.Arrays;
 
 import game.Action;
 import game.AgentState;
-import geom.Grid;
+import geom.TargetGrid;
 
 /**
  * Represents the divergence in the actions of a target.
@@ -14,7 +14,7 @@ import geom.Grid;
  */
 public class TargetDivergence implements ActionDivergence {
 	/** The discrete grid over which the target moves. */
-	private Grid grid;
+	private TargetGrid grid;
 
 	/** The probability of each offset value. */
 	private double[] chances;
@@ -34,7 +34,7 @@ public class TargetDivergence implements ActionDivergence {
 	 * @param grid
 	 *            the grid over which the target moves.
 	 */
-	public TargetDivergence(Grid grid) {
+	public TargetDivergence(TargetGrid grid) {
 		this(grid, DEFAULT_CHANCES);
 	}
 
@@ -46,7 +46,7 @@ public class TargetDivergence implements ActionDivergence {
 	 * @param chances
 	 *            the distribution over the offsets.
 	 */
-	public TargetDivergence(Grid grid, double[] chances) {
+	public TargetDivergence(TargetGrid grid, double[] chances) {
 		this.grid = grid;
 		this.chances = Arrays.copyOf(chances, 8);
 	}
@@ -63,7 +63,7 @@ public class TargetDivergence implements ActionDivergence {
 		int index = 0;
 		for (; index < chances.length; index++) {
 			total += chances[index];
-			if (r < total) {
+			if (r <= total) {
 				break;
 			}
 		}
@@ -77,8 +77,10 @@ public class TargetDivergence implements ActionDivergence {
 	public Action divergeAction(Action action) {
 		AgentState currentState = action.getStartState();
 		AgentState desiredState = action.getResultingState();
-		Grid.GridCell startIndex = grid.getIndex(currentState.getPosition());
-		Grid.GridCell desiredIndex = grid.getIndex(desiredState.getPosition());
+		TargetGrid.GridCell startIndex = grid.getIndex(currentState
+				.getPosition());
+		TargetGrid.GridCell desiredIndex = grid.getIndex(desiredState
+				.getPosition());
 		if (desiredIndex.equals(startIndex)) {
 			return new Action(currentState); // No error when standing still.
 		}
@@ -89,7 +91,8 @@ public class TargetDivergence implements ActionDivergence {
 		double heading = grid.getHeading(actionCode);
 		double newHeading = heading + randomOffset();
 		int newActionCode = grid.getCodeFromHeading(newHeading);
-		Grid.GridCell endIndex = grid.decodeAction(startIndex, newActionCode);
+		TargetGrid.GridCell endIndex = grid.decodeAction(startIndex,
+				newActionCode);
 		return new Action(currentState, grid.getCentre(endIndex));
 	}
 }

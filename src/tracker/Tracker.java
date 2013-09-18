@@ -1,6 +1,5 @@
 package tracker;
 
-import game.Action;
 import game.ActionResult;
 import game.Agent;
 import game.AgentState;
@@ -8,14 +7,15 @@ import game.Percept;
 import game.RectRegion;
 import game.SensingParameters;
 import game.TrackerAction;
+import geom.TargetGrid;
 
+import java.awt.geom.Point2D;
 import java.util.List;
 
 import divergence.TargetMotionHistory;
 import divergence.TrackerMotionHistory;
 import target.TargetPolicy;
 
-@SuppressWarnings("unused")
 public class Tracker implements Agent {
 	/** The number of targets. */
 	private int numTargets;
@@ -149,7 +149,11 @@ public class Tracker implements Agent {
 		AgentState myState = previousResult.getNewState();
 		// TODO Write this method!
 		System.out.println(newPercepts);
-		double heading = targetPolicy.getAction(myState).getHeading();
+
+		TargetGrid grid = targetPolicy.getGrid();
+		TargetGrid.GridCell current = grid.getIndex(myState.getPosition());
+		TargetGrid.GridCell next = targetPolicy.getNextIndex(current);
+		double heading = grid.getHeading(grid.encodeAction(current, next));
 		return new TrackerAction(myState, heading, 100);
 	}
 }

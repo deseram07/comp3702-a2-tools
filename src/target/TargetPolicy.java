@@ -2,8 +2,8 @@ package target;
 
 import game.Action;
 import game.AgentState;
-import geom.Grid;
-import geom.Grid.GridCell;
+import geom.TargetGrid;
+import geom.TargetGrid.GridCell;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -22,9 +22,9 @@ import java.util.Scanner;
  */
 public class TargetPolicy {
 	/** The grid over which the policy is defined. */
-	private Grid grid;
+	private TargetGrid grid;
 	/** The policy itself, as a mapping of grid cells. */
-	private Map<Grid.GridCell, Grid.GridCell> policyMap;
+	private Map<TargetGrid.GridCell, TargetGrid.GridCell> policyMap;
 
 	/**
 	 * Constructs a duplicate policy.
@@ -33,8 +33,8 @@ public class TargetPolicy {
 	 *            the policy to duplicate.
 	 */
 	public TargetPolicy(TargetPolicy policy) {
-		this.grid = new Grid(policy.grid.getGridSize());
-		this.policyMap = new HashMap<Grid.GridCell, Grid.GridCell>(
+		this.grid = new TargetGrid(policy.grid.getGridSize());
+		this.policyMap = new HashMap<TargetGrid.GridCell, TargetGrid.GridCell>(
 				policy.policyMap);
 	}
 
@@ -47,7 +47,7 @@ public class TargetPolicy {
 	 *             if the file is invalid.
 	 */
 	public TargetPolicy(String path) throws IOException {
-		policyMap = new HashMap<Grid.GridCell, Grid.GridCell>();
+		policyMap = new HashMap<TargetGrid.GridCell, TargetGrid.GridCell>();
 
 		BufferedReader input = new BufferedReader(new FileReader(path));
 		int lineNo = 0;
@@ -65,7 +65,7 @@ public class TargetPolicy {
 						"Number of rows must equal number of columns.");
 			}
 			int gridSize = numRows;
-			grid = new Grid(gridSize);
+			grid = new TargetGrid(gridSize);
 
 			for (int i = 0; i < gridSize; i++) {
 				line = input.readLine();
@@ -99,7 +99,7 @@ public class TargetPolicy {
 	 * 
 	 * @return the grid used by this policy.
 	 */
-	public Grid getGrid() {
+	public TargetGrid getGrid() {
 		return grid;
 	}
 

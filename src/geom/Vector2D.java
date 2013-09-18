@@ -125,4 +125,11 @@ public class Vector2D {
 	public double getMagnitude() {
 		return magnitude;
 	}
+
+	/**
+	 * Returns a string representation of the vector.
+	 */
+	public String toString() {
+		return String.format("%.3f %.3f", x, y);
+	}
 }
