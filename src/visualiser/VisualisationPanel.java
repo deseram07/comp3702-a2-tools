@@ -1,12 +1,9 @@
 package visualiser;
 
-import game.Action;
-import game.ActionResult;
 import game.AgentState;
 import game.GameRunner;
 import game.RectRegion;
 import game.SensingParameters;
-import geom.GeomTools;
 import geom.Vector2D;
 
 import java.awt.BasicStroke;
@@ -21,7 +18,6 @@ import java.awt.geom.Arc2D;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
-import java.awt.geom.Rectangle2D;
 import java.util.List;
 
 import javax.swing.JComponent;
@@ -44,7 +40,6 @@ public class VisualisationPanel extends JComponent {
 	private Timer animationTimer;
 	private int framePeriod = 200;
 	private Integer frameNumber = null;
-	private int maxFrameNumber;
 
 	public VisualisationPanel(GameRunner gameRunner, Visualiser visualiser) {
 		super();
@@ -69,17 +64,16 @@ public class VisualisationPanel extends JComponent {
 		if (animationTimer != null) {
 			animationTimer.stop();
 		}
-		maxFrameNumber = gameRunner.getTurnNo();
 		gotoFrame(0);
 		animationTimer = new Timer(framePeriod, new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
 				int newFrameNumber = frameNumber + 1;
-				if (newFrameNumber > maxFrameNumber) {
+				if (newFrameNumber > gameRunner.getTurnNo()) {
 					stepGame();
 				} else {
 					gotoFrame(newFrameNumber);
-					if (newFrameNumber == maxFrameNumber
+					if (newFrameNumber == gameRunner.getTurnNo()
 							&& gameRunner.gameComplete()) {
 						animationTimer.stop();
 						visualiser.setPlaying(false);
@@ -101,7 +95,6 @@ public class VisualisationPanel extends JComponent {
 			animationTimer.stop();
 			visualiser.setPlaying(false);
 		}
-		maxFrameNumber = gameRunner.getTurnNo();
 		visualiser.updateMaximum();
 		gotoFrame(frameNumber + 1);
 	}
@@ -135,7 +128,7 @@ public class VisualisationPanel extends JComponent {
 			animationTimer.stop();
 			visualiser.setPlaying(false);
 		} else {
-			if (gameRunner.gameComplete()) {
+			if (gameRunner.gameComplete() && frameNumber == gameRunner.getTurnNo()) {
 				gotoFrame(0);
 			}
 			animationTimer.start();

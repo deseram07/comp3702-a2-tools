@@ -5,24 +5,21 @@ import geom.Vector2D;
 import java.awt.geom.Point2D;
 
 /**
- * Represents an action taken by one of the agents in the game.
+ * Represents an action attempted by one of the agents in the game.
  * 
  * @author lackofcheese
  * 
  */
 public class Action {
-	/**
-	 * True iff this action consists of calling HQ; this requires the agent to
-	 * stand in place
-	 */
-	private boolean callingHQ;
-
+	/** Whether this action is a movement action. */
+	private boolean isMovement;
+	/** Whether this action is a camera adjustment. */
+	private boolean isCameraAdjustment;
+	
 	/** The new heading for the agent, in radians. */
 	private double heading;
 	/** The distance to travel. */
 	private double distance;
-	/** The new camera arm length. */
-	private double newCameraArmLength;
 
 	/** The initial state. */
 	private AgentState startState;
@@ -36,41 +33,39 @@ public class Action {
 	 *            the starting state.
 	 */
 	public Action(AgentState startState) {
-		this(startState, false);
-	}
-
-	/**
-	 * A stationary action - either do nothing, or call HQ.
-	 * 
-	 * @param startState
-	 *            the starting state.
-	 * @param callingHQ
-	 *            true iff this is an HQ call.
-	 */
-	public Action(AgentState startState, boolean callingHQ) {
+		this.isMovement = false;
+		this.isCameraAdjustment = false;
+		
 		this.startState = startState;
-		this.callingHQ = callingHQ;
 		this.heading = startState.getHeading();
 		this.distance = 0;
-		this.newCameraArmLength = startState.getCameraArmLength();
-
 		this.resultingState = startState;
 	}
-
+	
 	/**
-	 * A heading change action - remain in the same place, but change heading.
+	 * A camera adjustment action - keep position and heading, but 
+	 * change the length of the camera arm.
 	 * 
-	 * @param startState
-	 *            the starting state.
-	 * @param heading
-	 *            the new heading.
+	 * @param startState the starting state.
+	 * @param newCameraArmLength the new camera arm length.
 	 */
-	public Action(AgentState startState, double heading) {
-		this(startState, heading, 0);
+	public Action(AgentState startState, double newCameraArmLength) {
+		this.isMovement = false;
+		this.isCameraAdjustment = true;
+		
+		this.startState = startState;
+		this.heading = startState.getHeading();
+		this.distance = 0;
+		this.resultingState = new AgentState(
+				startState.getPosition(),
+				startState.getHeading(),
+				startState.hasCamera(),
+				newCameraArmLength);
 	}
 
 	/**
-	 * A movement with the given heading and distance.
+	 * A movement with the given heading and distance. To stay in the same
+	 * place while changing heading, simply use a distance of 0.
 	 * 
 	 * @param startState
 	 *            the starting state.
@@ -80,43 +75,28 @@ public class Action {
 	 *            the distance to travel.
 	 */
 	public Action(AgentState startState, double heading, double distance) {
-		this(startState, heading, distance, startState.getCameraArmLength());
-	}
-
-	/**
-	 * A movement with the given heading and distance, in addition to a change
-	 * of the camera arm length to the given value.
-	 * 
-	 * @param startState
-	 *            the starting state.
-	 * @param heading
-	 *            the new heading.
-	 * @param distance
-	 *            the distance to travel.
-	 * @param newCameraArmLength
-	 *            the new camera arm length.
-	 */
-	public Action(AgentState startState, double heading, double distance,
-			double newCameraArmLength) {
+		this.isMovement = true;
+		this.isCameraAdjustment = false;
+		
 		this.startState = startState;
-		this.callingHQ = false;
 		this.heading = heading;
 		this.distance = distance;
-		this.newCameraArmLength = newCameraArmLength;
-
 		Point2D startPos = startState.getPosition();
 		Point2D endPos;
 		if (distance == 0) {
+			if (heading == startState.getHeading()) {
+				this.isMovement = false;
+			}
 			endPos = startPos;
 		} else {
 			endPos = new Vector2D(distance, heading).addedTo(startPos);
 		}
 		this.resultingState = new AgentState(endPos, heading,
-				startState.hasCamera(), newCameraArmLength);
+				startState.hasCamera(), startState.getCameraArmLength());
 	}
 
 	/**
-	 * A movement towards the given desired position.
+	 * A movement to the given desired position.
 	 * 
 	 * @param startState
 	 *            the starting state.
@@ -124,28 +104,13 @@ public class Action {
 	 *            the position to travel towards.
 	 */
 	public Action(AgentState startState, Point2D desiredPos) {
-		this(startState, desiredPos, startState.getCameraArmLength());
-	}
-
-	/**
-	 * A movement towards the given desired position, combined with a change of
-	 * camera length to the given value.
-	 * 
-	 * @param startState
-	 *            the starting state.
-	 * @param desiredPos
-	 *            the position to travel towards.
-	 * @param newCameraArmLength
-	 *            the camera arm length to .
-	 */
-	public Action(AgentState startState, Point2D desiredPos,
-			double newCameraArmLength) {
+		this.isCameraAdjustment = false;
+		this.isMovement = true;
+		
 		this.startState = startState;
-		this.callingHQ = false;
-		this.newCameraArmLength = newCameraArmLength;
-
 		Point2D startPos = startState.getPosition();
 		if (startPos.equals(desiredPos)) {
+			this.isMovement = false;
 			this.heading = startState.getHeading();
 			this.distance = 0;
 		} else {
@@ -154,16 +119,23 @@ public class Action {
 			this.distance = motion.getMagnitude();
 		}
 		this.resultingState = new AgentState(desiredPos, heading,
-				startState.hasCamera(), newCameraArmLength);
+				startState.hasCamera(), startState.getCameraArmLength());
 	}
 
 	/**
-	 * Returns true iff this action is an HQ call.
-	 * 
-	 * @return true iff this action is an HQ call.
+	 * Returns true iff this action involves a heading change or movement.
+	 * @return true iff this action involves a heading change or movement.
 	 */
-	public boolean isCallingHQ() {
-		return callingHQ;
+	public boolean isMovement() {
+		return isMovement;
+	}
+
+	/**
+	 * Returns true iff this action is a camera adjustment.
+	 * @return true iff this action is a camera adjustment.
+	 */
+	public boolean isCameraAdjustment() {
+		return isCameraAdjustment;
 	}
 
 	/**
@@ -182,15 +154,6 @@ public class Action {
 	 */
 	public double getDistance() {
 		return distance;
-	}
-
-	/**
-	 * Returns the new camera arm length after this action.
-	 * 
-	 * @return the new camera arm length after this action.
-	 */
-	public double getNewCameraArmLength() {
-		return newCameraArmLength;
 	}
 
 	/**

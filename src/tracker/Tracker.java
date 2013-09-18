@@ -7,10 +7,12 @@ import game.AgentState;
 import game.Percept;
 import game.RectRegion;
 import game.SensingParameters;
+import game.TrackerAction;
 
 import java.util.List;
 
-import target.TargetMotionHistory;
+import divergence.TargetMotionHistory;
+import divergence.TrackerMotionHistory;
 import target.TargetPolicy;
 
 @SuppressWarnings("unused")
@@ -102,12 +104,14 @@ public class Tracker implements Agent {
 	}
 
 	@Override
-	public Action getAction(int turnNo, ActionResult previousResult,
+	public TrackerAction getAction(int turnNo, ActionResult previousResult,
 			double[] scores, List<Percept> newPercepts) {
 		/*
 		 * TODO Write this method! This is the one that defines how your agent
 		 * will respond to any given situation.
 		 */
-		return targetPolicy.getAction(previousResult.getNewState());
+		AgentState myState = previousResult.getNewState();
+		double heading = targetPolicy.getAction(myState).getHeading();
+		return new TrackerAction(myState, heading, 100);
 	}
 }

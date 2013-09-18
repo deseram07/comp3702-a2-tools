@@ -3,13 +3,8 @@ package game;
 import geom.GeomTools;
 import geom.Vector2D;
 
-import java.awt.Shape;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Arc2D;
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
-import java.awt.geom.Line2D.Double;
-import java.awt.geom.Rectangle2D;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -23,11 +18,14 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
-import target.TargetMotionHistory;
+import divergence.ActionDivergence;
+import divergence.TargetDivergence;
+import divergence.TargetMotionHistory;
+import divergence.TrackerMotionHistory;
+import divergence.ZeroDivergence;
+import target.Target;
 import target.TargetPolicy;
-import target.TargetWithError;
 import tracker.Tracker;
-import tracker.TrackerMotionHistory;
 
 /**
  * This class runs the "Game of Spy" for assignment 2. It contains a structured
@@ -37,7 +35,7 @@ import tracker.TrackerMotionHistory;
  * @author lackofcheese
  */
 public class GameRunner {
-	private double MAX_ERROR = 1e-5;
+	private double MAX_SIGHT_DISTANCE_ERROR = 1e-5;
 	private int NUM_CAMERA_ARM_STEPS = 1000;
 
 	/* ------------------------ SETUP PARAMETERS -------------------------- */
@@ -65,14 +63,19 @@ public class GameRunner {
 	private SensingParameters trackerSensingParams;
 	/** The initial state of the tracker. */
 	private AgentState trackerInitialState;
+	/** The distance the tracker can move in one step. */
+	private double trackerMoveDistance;
 
 	/** The obstacles in the game space. */
 	private List<RectRegion> obstacles;
 	/** The goal region for the target(s). */
 	private RectRegion goalRegion;
-
-	/** The maximum distance that can be moved by an agent in one step. */
-	private double maxMovementDistance;
+	
+	/** 
+	 * The obstacles in the game space, in addition to extra
+	 * obstacles representing the workspace boundaries.
+	 */
+	private List<RectRegion> extendedObstacles;
 
 	/**
 	 * Loads the problem setup from a text file.
@@ -108,7 +111,7 @@ public class GameRunner {
 			s = new Scanner(line);
 			String path = baseFolder.resolve(s.next()).toString();
 			targetPolicy = new TargetPolicy(path);
-			maxMovementDistance = Math.sqrt(2) / targetPolicy.getGridSize();
+			trackerMoveDistance = 1.0 / targetPolicy.getGridSize();
 			if (hasTargetHistory) {
 				path = baseFolder.resolve(s.next()).toString();
 				targetMotionHistory = new TargetMotionHistory(path);
@@ -171,6 +174,12 @@ public class GameRunner {
 				lineNo++;
 				obstacles.add(new RectRegion(line));
 			}
+			
+			extendedObstacles = new ArrayList<RectRegion>(obstacles);
+			extendedObstacles.add(new RectRegion(-1, 0, 1, 1));
+			extendedObstacles.add(new RectRegion(1, 0, 1, 1));
+			extendedObstacles.add(new RectRegion(0, -1, 1, 1));
+			extendedObstacles.add(new RectRegion(0, 1, 1, 1));
 
 			setupLoaded = true;
 			actionResultSequence = null;
@@ -294,15 +303,6 @@ public class GameRunner {
 		return goalRegion;
 	}
 
-	/**
-	 * Returns the maximum distance an agent can move in one step.
-	 * 
-	 * @return the maximum distance an agent can move in one step.
-	 */
-	public double getMaxMovementDistance() {
-		return maxMovementDistance;
-	}
-
 	/* ------------------------ RUNNING THE GAME -------------------------- */
 
 	public class GameState {
@@ -315,12 +315,12 @@ public class GameRunner {
 
 		/** The players in the game. */
 		private Agent[] players;
+		/** The divergences for the players' actions. */
+		private ActionDivergence[] playerDivs;
 		/** The scores of the players. */
 		private double[] playerScores;
 		/** The states of the players. */
 		private AgentState[] playerStates;
-		/** Whether each player has reached the goal. */
-		private boolean[] goalReached;
 
 		/** The percepts acquired since the last tracker turn. */
 		List<Percept> trackerPercepts;
@@ -335,18 +335,18 @@ public class GameRunner {
 			trackerPercepts = new ArrayList<Percept>();
 
 			players = new Agent[numTargets + 1];
+			playerDivs = new ActionDivergence[numTargets + 1];
 			playerScores = new double[numTargets + 1];
 			playerStates = new AgentState[numTargets + 1];
-			goalReached = new boolean[numTargets + 1];
 			for (int i = 1; i <= numTargets; i++) {
-				players[i] = new TargetWithError(targetPolicy);
+				players[i] = new Target(targetPolicy);
+				playerDivs[i] = new TargetDivergence(targetPolicy.getGrid());
 				playerScores[i] = 0;
 				playerStates[i] = targetInitialStates.get(i - 1);
-				goalReached[i] = isWithinGoal(playerStates[i]);
 			}
+			playerDivs[0] = new ZeroDivergence();
 			playerScores[0] = 0;
 			playerStates[0] = trackerInitialState;
-			goalReached[0] = false;
 
 			List<AgentState> targetInitialStatesCopy = new ArrayList<AgentState>();
 			for (AgentState as : targetInitialStates) {
@@ -380,11 +380,11 @@ public class GameRunner {
 			this.currentPlayer = other.currentPlayer;
 
 			this.players = other.players;
+			this.playerDivs = other.playerDivs;
 			this.playerScores = Arrays.copyOf(other.playerScores,
 					numTargets + 1);
 			this.playerStates = Arrays.copyOf(other.playerStates,
 					numTargets + 1);
-			this.goalReached = Arrays.copyOf(other.goalReached, numTargets + 1);
 
 			this.trackerPercepts = new ArrayList<Percept>(other.trackerPercepts);
 		}
@@ -426,6 +426,28 @@ public class GameRunner {
 		}
 
 		/**
+		 * Returns the score of the tracker.
+		 * 
+		 * @return the score of the tracker.
+		 */
+		public double getTrackerScore() {
+			return playerScores[0];
+		}
+
+		/**
+		 * Returns the total score of the target(s).
+		 * 
+		 * @return the total score of the target(s).
+		 */
+		public double getTargetScore() {
+			double score = 0;
+			for (int i = 1; i <= numTargets; i++) {
+				score += playerScores[i];
+			}
+			return score;
+		}
+
+		/**
 		 * Returns the states of the players.
 		 * 
 		 * @return the states of the players.
@@ -455,7 +477,7 @@ public class GameRunner {
 	 * 
 	 * @return the sequence of actions with associated results.
 	 */
-	public List<ActionResult> getActionResults() {
+	public List<ActionResult> getActionResultSequence() {
 		return actionResultSequence;
 	}
 
@@ -498,10 +520,22 @@ public class GameRunner {
 			return;
 		}
 
-		while (cs.turnNo > desiredTurnNo) {
-			stateSequence.remove(cs.turnNo);
-			cs.turnNo -= 1;
-			actionResultSequence.remove(cs.turnNo);
+		int turnNo = cs.turnNo;
+		while (turnNo > desiredTurnNo) {
+			stateSequence.remove(turnNo);
+			turnNo -= 1;
+			actionResultSequence.remove(turnNo);
+		}
+		cs = stateSequence.get(turnNo);
+	}
+
+	/**
+	 * Runs the full game.
+	 */
+	public void runFull() {
+		initialise();
+		while (!gameComplete()) {
+			simulateTurn();
 		}
 	}
 
@@ -509,7 +543,10 @@ public class GameRunner {
 	 * Simulates a single turn of the game.
 	 */
 	public void simulateTurn() {
+		// Duplicate the state for modification.
 		cs = new GameState(cs);
+
+		// Retrieve the last action taken by this player.
 		int previousTurn = cs.turnNo - numTargets - 1;
 		ActionResult previousResult;
 		if (previousTurn >= 0) {
@@ -518,40 +555,35 @@ public class GameRunner {
 			previousResult = new ActionResult(null, new AgentState(
 					cs.playerStates[cs.currentPlayer]), 0);
 		}
-		double[] scores = Arrays.copyOf(cs.playerScores, numTargets + 1);
+
+		// Query the player for an action.
 		Action action;
 		if (cs.currentPlayer == 0) {
+			// Tracker to act.
+
+			// Copy the game's scores to inform the tracker.
+			double[] scores = Arrays.copyOf(cs.playerScores, numTargets + 1);
 			action = cs.players[0].getAction(cs.turnNo, previousResult, scores,
 					new ArrayList<Percept>(cs.trackerPercepts));
 			cs.trackerPercepts.clear();
 		} else {
-			if (cs.goalReached[cs.currentPlayer]) {
-				action = null;
-			} else {
-				action = cs.players[cs.currentPlayer].getAction(cs.turnNo,
-						previousResult, scores, null);
-			}
+			// Target to act.
+			action = cs.players[cs.currentPlayer].getAction(cs.turnNo,
+					previousResult, null, null);
 		}
 
+		// Diverge the action.
+		action = cs.playerDivs[cs.currentPlayer].divergeAction(action);
+
+		// Simulate the action.
 		ActionResult result;
-		if (action != null) {
-			result = simulateAction(cs.turnNo, cs.currentPlayer, action);
-			cs.playerScores[cs.currentPlayer] += result.getReward();
-		} else {
-			result = new ActionResult(null, previousResult.getNewState(), 0);
-		}
+		result = simulateAction(cs.turnNo, cs.currentPlayer, action);
+		cs.playerScores[cs.currentPlayer] += result.getReward();
 		actionResultSequence.add(result);
 
-		if (isWithinGoal(cs.playerStates[cs.currentPlayer])) {
-			cs.goalReached[cs.currentPlayer] = true;
-		}
-		boolean allInGoal = true;
-		for (int i = 1; i <= numTargets; i++) {
-			if (!cs.goalReached[i]) {
-				allInGoal = false;
-			}
-		}
-		if (allInGoal) {
+		// If a target reached the goal, the game ends.
+		if (cs.currentPlayer != 0
+				&& isWithinGoal(cs.playerStates[cs.currentPlayer])) {
 			cs.gameComplete = true;
 		}
 
@@ -561,7 +593,7 @@ public class GameRunner {
 	}
 
 	/**
-	 * Simulates an action taken by a player; this consists of a movement and
+	 * Simulates an action taken by a player; this consists of any movement and
 	 * also testing for which other players can be seen.
 	 * 
 	 * @param turnNo
@@ -573,50 +605,107 @@ public class GameRunner {
 	 * @return the result of the action.
 	 */
 	public ActionResult simulateAction(int turnNo, int playerNo, Action action) {
-		ActionResult result = simulateMovement(turnNo, playerNo, action);
-		AgentState newState = result.getNewState();
-		double reward = result.getReward();
-
+		boolean isHQCall = false;
+		double reward = 0;
+		
+		// Execute any movement or camera adjustment.
+		if (action.isMovement()) {
+			simulateMovement(turnNo, playerNo, action);
+		} else if (action.isCameraAdjustment()) {
+			simulateCameraAdjustment(turnNo, playerNo, action);
+		}
+		
+		// Check whether this is an HQ call, and update the reward if so.
 		if (playerNo == 0) {
+			TrackerAction trackerAction = (TrackerAction)action;
+			if (trackerAction.isHQCall()) {
+				isHQCall = true;
+				reward -= 5;
+			}
+		}
+		
+		// Check whether the tracker and target see each other.
+		if (playerNo == 0) {
+			// Evaluate the tracker's scoring.
 			for (int otherNo = 1; otherNo <= numTargets; otherNo++) {
-				if (cs.goalReached[otherNo]) {
-					continue;
-				}
-				if (action.isCallingHQ() || canSee(0, otherNo)) {
+				boolean canSee = GeomTools.canSee(cs.playerStates[playerNo], cs.playerStates[otherNo], trackerSensingParams, obstacles, MAX_SIGHT_DISTANCE_ERROR, NUM_CAMERA_ARM_STEPS);
+				if (canSee) {
+					// Reward for seeing the target.
 					reward += 1;
+				}
+				// If we saw the target or called HQ, we obtain a percept of the target's state.
+				if (canSee || isHQCall) {
 					cs.trackerPercepts.add(new Percept(turnNo, otherNo,
 							new AgentState(cs.playerStates[otherNo])));
 				}
 			}
 		} else {
-			if (canSee(playerNo, 0)) {
+			// If the target sees the tracker, the target gets rewarded.
+			if (GeomTools.canSee(cs.playerStates[playerNo], cs.playerStates[0], targetSensingParams, obstacles, MAX_SIGHT_DISTANCE_ERROR, NUM_CAMERA_ARM_STEPS)) {
 				reward += 1;
 			}
-			if (canSee(0, playerNo)) {
+			// The tracker sees the target -> percept but no reward.
+			if (GeomTools.canSee(cs.playerStates[0], cs.playerStates[playerNo], trackerSensingParams, obstacles, MAX_SIGHT_DISTANCE_ERROR, NUM_CAMERA_ARM_STEPS)) {
 				cs.trackerPercepts.add(new Percept(turnNo, playerNo,
 						new AgentState(cs.playerStates[playerNo])));
 			}
 		}
-		return new ActionResult(action, newState, reward);
+		return new ActionResult(action, cs.playerStates[playerNo], reward);
 	}
 
 	/**
-	 * Simulates only the movement / HQ call aspect of an action - doesn't add
-	 * the rewards for seeing other players.
+	 * Simulates only the camera adjustment aspect of an action.
 	 * 
 	 * @param turnNo
+	 *            the turn number.
 	 * @param playerNo
+	 *            the acting player.
 	 * @param action
-	 * @return the result of the movement / HQ call.
+	 *            the action taken.
 	 */
-	public ActionResult simulateMovement(int turnNo, int playerNo, Action action) {
+	public void simulateCameraAdjustment(int turnNo, int playerNo,
+			Action action) {
 		AgentState startState = action.getStartState();
-		if (action.isCallingHQ()) {
-			return new ActionResult(action, startState, -5);
+		// If the action is invalid, ignore it.
+		if (!startState.hasCamera() || !startState.equals(cs.playerStates[playerNo])) {
+			return;
 		}
+		double armLength = action.getResultingState().getCameraArmLength();
+		double minLength = trackerSensingParams.getMinLength();
+		double maxLength = trackerSensingParams.getMaxLength();
+		if (armLength < minLength) {
+			armLength = minLength;
+		} else if (armLength > maxLength) {
+			armLength = maxLength;
+		}
+		Point2D playerPos = startState.getPosition();
+		Point2D cameraPos = new Vector2D(armLength, startState.getHeading() - Math.PI/2).addedTo(playerPos);
+		Line2D.Double playerLine = new Line2D.Double(playerPos, cameraPos);
+		// If the new camera arm length causes collision, don't update the state.
+		if (!GeomTools.isCollisionFree(playerLine, extendedObstacles)) {
+			return;
+		}
+	
+		// Adjustment successful - update the state.
+		AgentState resultingState = new AgentState(startState.getPosition(),startState.getHeading(),true,armLength);
+		cs.playerStates[playerNo] = resultingState;
+	}
 
+	/**
+	 * Simulates only the movement aspect of an action.
+	 * 
+	 * @param turnNo
+	 *            the turn number.
+	 * @param playerNo
+	 *            the acting player.
+	 * @param action
+	 *            the action taken.
+	 */
+	public void simulateMovement(int turnNo, int playerNo, Action action) {
+		AgentState startState = action.getStartState();
+		// If the start state doesn't match, we ignore the action.
 		if (!startState.equals(cs.playerStates[playerNo])) {
-			return new ActionResult(action, startState, 0);
+			return;
 		}
 
 		Point2D startPos = startState.getPosition();
@@ -624,206 +713,33 @@ public class GameRunner {
 
 		AgentState endState = action.getResultingState();
 		Point2D endPos = endState.getPosition();
-		double heading = action.getHeading();
+		double endHeading = action.getHeading();
+		double distance = action.getDistance();
 		boolean hasCamera = endState.hasCamera();
 		double armLength = endState.getCameraArmLength();
-		boolean canTurn = true;
-		if (hasCamera) {
-			double minLength = trackerSensingParams.getMinLength();
-			double maxLength = trackerSensingParams.getMaxLength();
-			if (armLength < minLength) {
-				armLength = minLength;
-			} else if (armLength > maxLength) {
-				armLength = maxLength;
+		
+		// If the action includes an impossible turn, ignore the action.
+		if (hasCamera && (startHeading != endHeading) && 
+				!GeomTools.canTurn(startPos, startHeading, endHeading, armLength, extendedObstacles)) {
+			return;
+		}
+		
+		// If a linear component is involved, test it.
+		if (distance != 0) {
+			// Set the distance moved to be the tracker's actual movement distance.
+			if (playerNo == 0 && distance != 0) {
+				distance = trackerMoveDistance;
+				endPos = new Vector2D(distance, endHeading).addedTo(startPos);
 			}
-
-			if (!canTurn(startPos, startHeading, heading, armLength)) {
-				endPos = startPos;
-				heading = startHeading;
-				canTurn = false;
+			
+			// If the movement is invalid, ignore the whole action.
+			if (!GeomTools.canMove(startPos, endPos, hasCamera, armLength, extendedObstacles)) {
+				return;
 			}
 		}
 
-		if (canTurn) {
-			double distance = action.getDistance();
-			if (distance > maxMovementDistance + MAX_ERROR) {
-				distance = maxMovementDistance;
-				endPos = new Vector2D(distance, heading).addedTo(startPos);
-			}
-
-			if (!canMove(startPos, endPos, hasCamera, armLength)) {
-				endPos = startPos;
-			}
-		}
-
-		endState = new AgentState(endPos, heading, hasCamera, armLength);
+		endState = new AgentState(endPos, endHeading, hasCamera, armLength);
 		cs.playerStates[playerNo] = endState;
-		return new ActionResult(action, endState, 0);
-	}
-
-	/**
-	 * Return true if turning from the initial heading to the final heading at
-	 * the given position is valid.
-	 * 
-	 * @param centre
-	 *            the centre position.
-	 * @param startHeading
-	 *            the initial heading.
-	 * @param endHeading
-	 *            the final heading.
-	 * @param armLength
-	 *            the length of the camera arm.
-	 * @return true
-	 */
-	public boolean canTurn(Point2D centre, double startHeading,
-			double endHeading, double armLength) {
-		Arc2D arc = new Arc2D.Double();
-		double startDeg = -Math.toDegrees(startHeading - Math.PI / 2);
-		double extentDeg = -Math.toDegrees(GeomTools.normaliseAngle(endHeading
-				- startHeading));
-		for (int i = 0; i < 2; i++) {
-			arc.setArcByCenter(centre.getX(), centre.getY(), armLength,
-					startDeg, extentDeg, Arc2D.PIE);
-			if (isCollisionFree(arc)) {
-				return true;
-			}
-			if (extentDeg <= 0) {
-				extentDeg += 360;
-			} else {
-				extentDeg -= 360;
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Returns true iff moving from the start to the end with the given arm
-	 * length is valid.
-	 * 
-	 * @param startPos
-	 *            the start position.
-	 * @param endPos
-	 *            the end position.
-	 * @param hasCamera
-	 *            whether a camera arm is present.
-	 * @param armLength
-	 *            the length of the camera arm.
-	 * @return true iff moving from the start to the end with the given arm
-	 *         length is valid.
-	 */
-	public boolean canMove(Point2D startPos, Point2D endPos, boolean hasCamera,
-			double armLength) {
-		Line2D line = new Line2D.Double(startPos, endPos);
-		if (!isCollisionFree(line)) {
-			return false;
-		}
-		if (!hasCamera) {
-			return true;
-		}
-
-		Vector2D disp = new Vector2D(startPos, endPos);
-		double distance = disp.getMagnitude();
-		double heading = disp.getDirection();
-		Rectangle2D rec = new Rectangle2D.Double(startPos.getX(),
-				startPos.getY(), armLength, distance);
-		AffineTransform tf = AffineTransform.getRotateInstance(heading
-				- Math.PI / 2, startPos.getX(), startPos.getY());
-		return isCollisionFree(tf.createTransformedShape(rec));
-	}
-
-	/**
-	 * Returns true iff the observer can see the observed.
-	 * 
-	 * @param observerNo
-	 *            the player no. of the observer.
-	 * @param observedNo
-	 *            the player no. of the observed.
-	 * @return true iff the observer can see the observed.
-	 */
-	public boolean canSee(int observerNo, int observedNo) {
-		AgentState observedState = cs.playerStates[observedNo];
-		Point2D observedPos = observedState.getPosition();
-		if (canSee(observerNo, observedPos)) {
-			return true;
-		}
-		if (observedNo != 0 || !cs.playerStates[0].hasCamera()) {
-			return false;
-		}
-		double armDirection = observedState.getHeading() - Math.PI / 2;
-		double armLength = observedState.getCameraArmLength();
-		Point2D observedCameraPos = new Vector2D(armLength, armDirection)
-				.addedTo(observedPos);
-		int count = 0;
-		for (int i = 1; i <= NUM_CAMERA_ARM_STEPS; i++) {
-			double t = ((double) i) / NUM_CAMERA_ARM_STEPS;
-			Point2D p = GeomTools.interpolatePoint(observedPos,
-					observedCameraPos, t);
-			if (canSee(observerNo, p)) {
-				count += 1;
-			}
-		}
-		return (count * 2 > NUM_CAMERA_ARM_STEPS + 1);
-	}
-
-	/**
-	 * Returns true iff the given observer can see the given point.
-	 * 
-	 * @param observerNo
-	 *            the player no. of the observer.
-	 * @param point
-	 *            the point.
-	 * @return true iff the given observer can see the given point.
-	 */
-	public boolean canSee(int observerNo, Point2D point) {
-		SensingParameters sp = (observerNo == 0 ? targetSensingParams
-				: trackerSensingParams);
-		AgentState observerState = cs.playerStates[observerNo];
-		Point2D observerPos = observerState.getPosition();
-		double observerHeading = observerState.getHeading();
-		Point2D viewPos = observerPos;
-
-		if (observerState.hasCamera()) {
-			double armDirection = observerHeading - Math.PI / 2;
-			double armLength = observerState.getCameraArmLength();
-			viewPos = new Vector2D(armLength, armDirection)
-					.addedTo(observerPos);
-		}
-
-		Vector2D viewVector = new Vector2D(viewPos, point);
-
-		// Verify the viewing range.
-		double distance = viewVector.getMagnitude();
-		if (distance < MAX_ERROR) {
-			return true;
-		}
-		if (distance > sp.getRange() + MAX_ERROR) {
-			return false;
-		}
-
-		// Verify the viewing angle.
-		double viewAngleDelta = GeomTools.normaliseAngle(viewVector
-				.getDirection() - observerHeading);
-		if (Math.abs(viewAngleDelta) > sp.getAngle() / 2 + MAX_ERROR) {
-			return false;
-		}
-
-		return isCollisionFree(new Line2D.Double(viewPos, point));
-	}
-
-	/**
-	 * Returns true iff the given line doesn't collide with any obstacles.
-	 * 
-	 * @param s
-	 *            the line to test.
-	 * @return true iff the given line doesn't collide with any obstacles.
-	 */
-	public boolean isCollisionFree(Shape s) {
-		for (RectRegion obs : obstacles) {
-			if (s.intersects(obs.getRect())) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	/**
@@ -863,27 +779,53 @@ public class GameRunner {
 		writer.close();
 	}
 
-	/**
-	 * Runs the full game.
-	 */
-	public void runFull() {
-		initialise();
-		while (!gameComplete()) {
-			simulateTurn();
-		}
-	}
-
 	/* ---------------------- COMMAND LINE RUNNER ------------------------ */
+	public int runVerbose(String outputPath, boolean verbose) {
+		initialise();
+		runFull();
+		int trackerScore = (int)cs.getTrackerScore();
+		int targetScore = (int)cs.getTargetScore();
+		int winResult;
+		String formatString;
+		if (trackerScore > targetScore) {
+			winResult = 1;
+			formatString = "Tracker wins %d-%d";
+		} else if (trackerScore == targetScore) {
+			winResult = 0;
+			formatString = "Tracker ties %d-%d";
+		} else {
+			winResult = -1;
+			formatString = "Tracker loses %d-%d";
+		}
+		if (verbose) {
+			System.out.println(String.format(formatString, trackerScore, targetScore));
+		}
+		/*
+		double[] scores = cs.getPlayerScores();
+		if (numTargets > 1) {
+			System.out.print("Individual target scores: ");
+			StringBuilder sb = new StringBuilder();
+			for (int i = 1; i <= numTargets; i++) {
+				double score = scores[i];
+				sb.append(String.format("%d ", (int) score));
+			}
+			System.out.println(sb);
+		}
+		System.out.println();
+		*/
+		
+		try {
+			writeResults(outputPath);
+		} catch (IOException e) {
+			System.err.println("Failed to write output: " + e.getMessage());
+		}
+		return winResult;
+	}
 
 	/** The default file to load the game setup from. */
 	private static final String DEFAULT_SETUP_FILE = "setup.txt";
 	/** The default file to output the game sequence to. */
 	private static final String DEFAULT_OUTPUT_FILE = "output.txt";
-
-	/** The file to load the game setup from. */
-	private static String setupFile = null;
-	/** The file to load the output from. */
-	private static String outputFile = null;
 
 	/**
 	 * Runs a game, with the problem setup file passed from the command line.
@@ -892,6 +834,8 @@ public class GameRunner {
 	 *            command line arguments; the first should be the setup file.
 	 */
 	public static void main(String[] args) {
+		String setupFile;
+		String outputFile;
 		if (args.length >= 1) {
 			setupFile = args[0];
 			if (args.length >= 2) {
@@ -910,40 +854,14 @@ public class GameRunner {
 			System.err.println("Failed to load setup file: " + e.getMessage());
 			return;
 		}
-
-		runner.initialise();
-		runner.runFull();
-		double[] scores = runner.cs.playerScores;
-		double trackerScore = scores[0];
-		System.out.println("Final Scores:");
-		System.out.println("Tracker: " + (int) trackerScore);
-		System.out.print("Target(s): ");
-		StringBuilder sb = new StringBuilder();
-		int winValue = 1;
-		for (int i = 1; i <= runner.numTargets; i++) {
-			double score = scores[i];
-			sb.append(String.format("%d ", (int) score));
-			if (score > trackerScore) {
-				winValue = -1;
-			} else if (score == trackerScore) {
-				if (winValue == 1) {
-					winValue = 0;
-				}
+		int numGames = 1000;
+		int numWins = 0;
+		for (int i = 0; i < numGames; i++) {
+			int result = runner.runVerbose(outputFile, false);
+			if (result == 1) {
+				numWins += 1;
 			}
 		}
-		System.out.println(sb);
-		System.out.println();
-		if (winValue == 1) {
-			System.out.println("Tracker wins!");
-		} else if (winValue == 0) {
-			System.out.println("Tracker ties!");
-		} else {
-			System.out.println("Tracker loses!");
-		}
-		try {
-			runner.writeResults(outputFile);
-		} catch (IOException e) {
-			System.err.println("Failed to write output: " + e.getMessage());
-		}
+		System.out.println(String.format("Tracker won %d of %d games.", numWins, numGames));
 	}
 }

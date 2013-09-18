@@ -86,7 +86,7 @@ public class Visualiser {
 
 	private static final int FRAME_PERIOD_MIN = 10;
 	private static final int FRAME_PERIOD_MAX = 1000;
-	private static final int FRAME_PERIOD_INIT = 500;
+	private static final int FRAME_PERIOD_INIT = 100;
 
 	private File defaultPath;
 
@@ -140,7 +140,7 @@ public class Visualiser {
 			if (!gameRunner.setupLoaded()) {
 				return 0;
 			}
-			return gameRunner.getNumTargets() + 2;
+			return 3 + gameRunner.getNumTargets();
 		}
 
 		public int getRowCount() {
@@ -155,14 +155,23 @@ public class Visualiser {
 					return "Score";
 				}
 			}
+			
 			if (row == 0) {
 				if (col == 1) {
 					return "Tracker";
+				} else if (col == 2) {
+					return "Target total";
 				} else {
-					return "Target #" + (col - 1);
+					return "Target #" + (col-2);
 				}
 			} else {
-				return vp.getCurrentState().getPlayerScores()[col - 1];
+				if (col == 1) {
+					return vp.getCurrentState().getTrackerScore();
+				} else if (col == 2) {
+					return vp.getCurrentState().getTargetScore();
+				} else {
+					return vp.getCurrentState().getPlayerScores()[col-2];
+				}
 			}
 		}
 	};
@@ -534,6 +543,10 @@ public class Visualiser {
 		boolean canForward = vp.getFrameNumber() < gameRunner.getTurnNo();
 		forwardButton.setEnabled(canForward);
 		forwardItem.setEnabled(canForward);
+		
+		boolean canStep = (!gameRunner.gameComplete() || canForward);
+		stepButton.setEnabled(canStep);
+		stepItem.setEnabled(canStep);
 	}
 
 	public void updateInfoText() {

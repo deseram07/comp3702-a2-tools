@@ -1,4 +1,4 @@
-package target;
+package divergence;
 
 /**
  * Represents a sequence of actions and results made by a target.

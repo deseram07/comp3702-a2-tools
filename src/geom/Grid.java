@@ -43,8 +43,8 @@ public class Grid {
 		 *            the column index of the cell.
 		 */
 		public GridCell(int row, int col) {
-			this.row = bound(row);
-			this.col = bound(col);
+			this.row = row;
+			this.col = col;
 		}
 
 		/**
@@ -78,23 +78,6 @@ public class Grid {
 		public int hashCode() {
 			return row * 3571 + col;
 		}
-	}
-
-	/**
-	 * Bounds the given 1-D index to the allowed range.
-	 * 
-	 * @param index
-	 *            the index to bound.
-	 * @return the closest allowable value to the given index.
-	 */
-	public int bound(int index) {
-		if (index < 0) {
-			index = 0;
-		}
-		if (index >= gridSize) {
-			index = gridSize - 1;
-		}
-		return index;
 	}
 
 	/**
