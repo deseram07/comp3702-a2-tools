@@ -5,12 +5,8 @@ import game.SensingParameters;
 import game.TrackerAction;
 
 /**
- * Corrects actions, in order to fix 
- * Represents no divergence at all - the diverged action will always be the
- * action that was attempted.
- * 
- * Also fixes the action to ensure that the distance travelled is equal to the
- * allowed value.
+ * Corrects actions, in order to fix actions that move by the wrong distance, or
+ * use invalid camera arm lengths.
  * 
  * @author lackofcheese
  * 
@@ -22,10 +18,12 @@ public class ActionCorrector implements ActionDivergence {
 	private SensingParameters sp;
 
 	/**
-	 * Constructs a ZeroDivergence with the given standard distance to travel.
+	 * Constructs an ActionCorrector with the given standard distance to travel.
 	 * 
 	 * @param stepDistance
 	 *            the standard move distance.
+	 * @param sp
+	 *            the sensing parameters of the tracker.
 	 */
 	public ActionCorrector(double stepDistance, SensingParameters sp) {
 		this.stepDistance = stepDistance;
@@ -36,14 +34,17 @@ public class ActionCorrector implements ActionDivergence {
 		TrackerAction trackerAction = (TrackerAction) action;
 		double distance = trackerAction.getDistance();
 		if (trackerAction.isCameraAdjustment()) {
-			double armLength = trackerAction.getResultingState().getCameraArmLength();
+			double armLength = trackerAction.getResultingState()
+					.getCameraArmLength();
 			if (armLength < sp.getMinLength()) {
-				return new TrackerAction(trackerAction.getStartState(), sp.getMinLength());
+				return new TrackerAction(trackerAction.getStartState(),
+						sp.getMinLength());
 			} else if (armLength > sp.getMaxLength()) {
-				return new TrackerAction(trackerAction.getStartState(), sp.getMaxLength());
+				return new TrackerAction(trackerAction.getStartState(),
+						sp.getMaxLength());
 			}
 		}
-		
+
 		if (!trackerAction.isMovement() || distance == 0
 				|| distance == stepDistance) {
 			return trackerAction;

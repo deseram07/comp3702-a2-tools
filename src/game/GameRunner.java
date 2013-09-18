@@ -480,9 +480,6 @@ public class GameRunner {
 	/** Corrects the actions of the tracker. */
 	private ActionCorrector trackerActionCorrector;
 
-	/** The line separator to use when writing to the output file. */
-	private static String lineSep = System.getProperty("line.separator");
-
 	/** Returns true iff a game is active and complete. */
 	public boolean gameComplete() {
 		return cs != null && cs.gameComplete;
@@ -798,6 +795,7 @@ public class GameRunner {
 	 *             if the file cannot be written.
 	 */
 	public void writeResults(String outputPath) throws IOException {
+		String lineSep = System.getProperty("line.separator");
 		FileWriter writer = new FileWriter(outputPath);
 		writer.write(cs.turnNo + lineSep);
 		writer.write(numTargets + lineSep);
@@ -949,11 +947,11 @@ public class GameRunner {
 		}
 		System.out.println(String.format("Tracker won %d of %d games.",
 				numWins, numGames));
-		try {
-			targetHistory.writeToFile("targetMotionHistory.txt");
-			trackerHistory.writeToFile("trackerMotionHistory.txt");
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+//		try {
+//			targetHistory.writeToFile("targetMotionHistory.txt");
+//			trackerHistory.writeToFile("trackerMotionHistory.txt");
+//		} catch (IOException e) {
+//			e.printStackTrace();
+//		}
 	}
 }
