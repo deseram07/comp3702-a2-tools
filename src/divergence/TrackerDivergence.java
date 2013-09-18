@@ -187,15 +187,15 @@ public class TrackerDivergence implements ActionDivergence {
 		TrackerGrid.GridCell targetCell = trackerGrid
 				.getCell(desiredDisplacement);
 
-		System.out.println("Desired: " + trackerAction.getHeading());
-		System.out.println("Desired: " + targetCell.getRow() + " " + targetCell.getCol());
-		System.out.println("Desired: " + desiredDisplacement);
+		//System.out.println("Desired: " + trackerAction.getHeading());
+		//System.out.println("Desired: " + targetCell.getRow() + " " + targetCell.getCol());
+		//System.out.println("Desired: " + desiredDisplacement);
 
 		TrackerGrid.GridCell newCell = divergeCell(targetCell);
 		Vector2D actualDisplacement = trackerGrid.getRandomPoint(newCell);
 
-		System.out.println("Actual: " + newCell.getRow() + " " + newCell.getCol());
-		System.out.println("Actual: " + actualDisplacement);
+		//System.out.println("Actual: " + newCell.getRow() + " " + newCell.getCol());
+		//System.out.println("Actual: " + actualDisplacement);
 
 		return new TrackerAction(startState, actualDisplacement.getDirection(),
 				actualDisplacement.getMagnitude());
