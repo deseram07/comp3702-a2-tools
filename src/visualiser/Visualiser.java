@@ -1,6 +1,7 @@
 package visualiser;
 
 import game.GameRunner;
+import game.GameRunner.GameState;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
@@ -552,9 +553,12 @@ public class Visualiser {
 	public void updateInfoText() {
 		if (!gameRunner.setupLoaded()) {
 			infoLabel.setText("No problem to display.");
-		} else if (vp.getCurrentState().isGameComplete()) {
-			infoLabel.setText("Game complete!");
-		} else if (vp.getCurrentState().isTrackerTurn()) {
+			return;
+		}
+		GameState state = vp.getCurrentState();
+		if (state.isGameComplete()) {
+			infoLabel.setText("Game complete! " + state.getResultString());
+		} else if (state.isTrackerTurn()) {
 			infoLabel.setText("Tracker to act.");
 		} else {
 			infoLabel.setText("Targets to act.");

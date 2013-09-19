@@ -441,15 +441,6 @@ public class GameRunner {
 		}
 
 		/**
-		 * Returns the turn number of this game.
-		 * 
-		 * @return the turn number of this game.
-		 */
-		public int getTurnNo() {
-			return turnNo;
-		}
-
-		/**
 		 * Returns true iff it's the tracker's turn to act.
 		 * 
 		 * @return true iff it's the tracker's turn to act.
@@ -487,6 +478,54 @@ public class GameRunner {
 				score += playerScores[i];
 			}
 			return score;
+		}
+
+		/**
+		 * Returns the score-state of the game, as an integer: +1 = tracker win
+		 * / winning 0 = tracker draw / drawing -1 = tracker loss / losing
+		 * 
+		 * @return the score-state of the game.
+		 */
+		public int getResult() {
+			double trackerScore = getTrackerScore();
+			double targetScore = getTargetScore();
+			if (trackerScore > targetScore) {
+				return 1;
+			} else if (trackerScore == targetScore) {
+				return 0;
+			} else {
+				return -1;
+			}
+		}
+
+		/**
+		 * Returns the score-state of the game as a String.
+		 * 
+		 * @return the score-state of the game.
+		 */
+		public String getResultString() {
+			int trackerScore = (int) getTrackerScore();
+			int targetScore = (int) getTargetScore();
+			String formatString = "Tracker %5s %d-%d";
+			if (trackerScore > targetScore) {
+				return String.format(formatString, (gameComplete ? "wins"
+						: "winning"), trackerScore, targetScore);
+			} else if (trackerScore == targetScore) {
+				return String.format(formatString, (gameComplete ? "draws"
+						: "drawing"), trackerScore, targetScore);
+			} else {
+				return String.format(formatString, (gameComplete ? "loses"
+						: "losing"), trackerScore, targetScore);
+			}
+		}
+
+		/**
+		 * Returns the turn number of this game.
+		 * 
+		 * @return the turn number of this game.
+		 */
+		public int getTurnNo() {
+			return turnNo;
 		}
 
 		/**
@@ -889,23 +928,9 @@ public class GameRunner {
 	 */
 	public int runVerbose(String outputPath, boolean verbose) {
 		runFull();
-		int trackerScore = (int) cs.getTrackerScore();
-		int targetScore = (int) cs.getTargetScore();
-		int winResult;
-		String formatString;
-		if (trackerScore > targetScore) {
-			winResult = 1;
-			formatString = "Tracker wins  %d-%d;";
-		} else if (trackerScore == targetScore) {
-			winResult = 0;
-			formatString = "Tracker ties  %d-%d;";
-		} else {
-			winResult = -1;
-			formatString = "Tracker loses %d-%d;";
-		}
+		int winResult = cs.getResult();
 		if (verbose) {
-			System.out.print(String.format(formatString, trackerScore,
-					targetScore));
+			System.out.print(cs.getResultString() + ";");
 			double[] scores = cs.getPlayerScores();
 			if (numTargets > 1) {
 				System.out.print(" target scores: ");
@@ -972,7 +997,7 @@ public class GameRunner {
 		int numGames = 100;
 		int numWins = 0;
 		for (int i = 0; i < numGames; i++) {
-			int result = runner.runVerbose(outputFile, false);
+			int result = runner.runVerbose(null, true);
 			if (result == 1) {
 				numWins += 1;
 			}
@@ -981,11 +1006,11 @@ public class GameRunner {
 		}
 		System.out.println(String.format("Tracker won %d of %d games.",
 				numWins, numGames));
-		try {
-			targetHistory.writeToFile("targetMotionHistory.txt");
-			trackerHistory.writeToFile("trackerMotionHistory.txt");
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		// try {
+		// targetHistory.writeToFile("targetMotionHistory.txt");
+		// trackerHistory.writeToFile("trackerMotionHistory.txt");
+		// } catch (IOException e) {
+		// e.printStackTrace();
+		// }
 	}
 }
