@@ -1,5 +1,7 @@
 package geom;
 
+import java.util.Random;
+
 import game.Action;
 
 /**
@@ -8,7 +10,7 @@ import game.Action;
  * @author lackofcheese
  * 
  */
-public class TrackerGrid {
+public class TrackerGrid implements ActionEncoder {
 	/** The width of each cell. */
 	private double cellWidth;
 
@@ -20,69 +22,6 @@ public class TrackerGrid {
 	 */
 	public TrackerGrid(double cellWidth) {
 		this.cellWidth = cellWidth;
-	}
-
-	/**
-	 * Represents a cell within the grid.
-	 * 
-	 * @author lackofcheese
-	 * 
-	 */
-	public class GridCell {
-		/** The row index of the cell. */
-		private int row;
-		/** The column index of the cell. */
-		private int col;
-
-		/**
-		 * Constructs a grid cell from its row and column indices.
-		 * 
-		 * @param row
-		 *            the row index of the cell.
-		 * @param col
-		 *            the column index of the cell.
-		 */
-		public GridCell(int row, int col) {
-			this.row = row;
-			this.col = col;
-		}
-
-		/**
-		 * Returns the row index of the cell.
-		 * 
-		 * @return the row index of the cell.
-		 */
-		public int getRow() {
-			return row;
-		}
-
-		/**
-		 * Returns the column index of the cell.
-		 * 
-		 * @return the column index of the cell.
-		 */
-		public int getCol() {
-			return col;
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			if (!(o instanceof GridCell)) {
-				return false;
-			}
-			GridCell other = (GridCell) o;
-			return this.row == other.row && this.col == other.col;
-		}
-
-		@Override
-		public int hashCode() {
-			return row * 3571 + col;
-		}
-
-		@Override
-		public String toString() {
-			return row + " " + col;
-		}
 	}
 
 	/**
@@ -140,10 +79,9 @@ public class TrackerGrid {
 	 * @return the centre point of the given cell.
 	 */
 	public Vector2D getCentre(GridCell cell) {
-		return new Vector2D(new double [] {
-				+cell.getCol() * cellWidth,
+		return new Vector2D(new double[] { +cell.getCol() * cellWidth,
 				-cell.getRow() * cellWidth
-				
+
 		});
 	}
 
@@ -152,24 +90,19 @@ public class TrackerGrid {
 	 * 
 	 * @param cell
 	 *            the cell.
+	 * @param random
+	 *            the source of randomness.
 	 * @return a random point in the given cell.
 	 */
-	public Vector2D getRandomPoint(GridCell cell) {
-		double randX = Math.random() - 0.5;
-		double randY = Math.random() - 0.5;
-		return new Vector2D(new double [] {
+	public Vector2D getRandomPoint(GridCell cell, Random random) {
+		double randX = random.nextDouble() - 0.5;
+		double randY = random.nextDouble() - 0.5;
+		return new Vector2D(new double[] {
 				+(cell.getCol() + randX) * cellWidth,
-				-(cell.getRow() + randY) * cellWidth
-		});
+				-(cell.getRow() + randY) * cellWidth });
 	}
 
-	/**
-	 * Returns the action code corresponding to the given action.
-	 * 
-	 * @param a
-	 *            the action to encode.
-	 * @return the action code corresponding to the given action.
-	 */
+	@Override
 	public int encodeAction(Action a) {
 		Vector2D displacement = a.getDisplacement();
 		return encodeFromCell(getCell(displacement));

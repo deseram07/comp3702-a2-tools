@@ -3,6 +3,7 @@ package divergence;
 import game.Action;
 import game.AgentState;
 import game.TrackerAction;
+import geom.GridCell;
 import geom.TrackerGrid;
 import geom.Vector2D;
 
@@ -12,7 +13,7 @@ import geom.Vector2D;
  * @author lackofcheese
  * 
  */
-public class TrackerDivergence implements ActionDivergence {
+public class TrackerDivergence extends ActionDivergence {
 	/** The allowed distance value. */
 	private double stepDistance;
 
@@ -65,8 +66,8 @@ public class TrackerDivergence implements ActionDivergence {
 	 *            the distributon to use.
 	 * @return a random cell index from the given distribution.
 	 */
-	private TrackerGrid.GridCell fromDistribution(double[][] distribution) {
-		double r = Math.random();
+	private GridCell fromDistribution(double[][] distribution) {
+		double r = random.nextDouble();
 		double total = 0;
 		for (int row = -2; row <= 2; row++) {
 			for (int col = -2; col <= 2; col++) {
@@ -74,12 +75,12 @@ public class TrackerDivergence implements ActionDivergence {
 				total += p;
 				if (r <= total) {
 					// System.out.println("p = " + p);
-					return trackerGrid.new GridCell(row, col);
+					return new GridCell(row, col);
 				}
 			}
 		}
 		// System.out.println("!!!! " + total);
-		return trackerGrid.new GridCell(2, 2);
+		return new GridCell(2, 2);
 	}
 
 	/**
@@ -89,7 +90,7 @@ public class TrackerDivergence implements ActionDivergence {
 	 *            the
 	 * @return
 	 */
-	private TrackerGrid.GridCell divergeCell(TrackerGrid.GridCell targetCell) {
+	private GridCell divergeCell(GridCell targetCell) {
 		boolean invertRow = false;
 		boolean invertCol = false;
 		boolean transpose = false;
@@ -109,7 +110,7 @@ public class TrackerDivergence implements ActionDivergence {
 			col = temp;
 			transpose = true;
 		}
-		TrackerGrid.GridCell divergedCell;
+		GridCell divergedCell;
 		if (row == 2 && col == 0) {
 			// System.out.println("Type 20");
 			divergedCell = fromDistribution(chances20);
@@ -137,7 +138,7 @@ public class TrackerDivergence implements ActionDivergence {
 		if (invertRow) {
 			row = -row;
 		}
-		return trackerGrid.new GridCell(row, col);
+		return new GridCell(row, col);
 	}
 
 	/**
@@ -184,18 +185,20 @@ public class TrackerDivergence implements ActionDivergence {
 		AgentState startState = trackerAction.getStartState();
 		Vector2D desiredDisplacement = new Vector2D(stepDistance,
 				trackerAction.getHeading());
-		TrackerGrid.GridCell targetCell = trackerGrid
-				.getCell(desiredDisplacement);
+		GridCell targetCell = trackerGrid.getCell(desiredDisplacement);
 
-		//System.out.println("Desired: " + trackerAction.getHeading());
-		//System.out.println("Desired: " + targetCell.getRow() + " " + targetCell.getCol());
-		//System.out.println("Desired: " + desiredDisplacement);
+		// System.out.println("Desired: " + trackerAction.getHeading());
+		// System.out.println("Desired: " + targetCell.getRow() + " " +
+		// targetCell.getCol());
+		// System.out.println("Desired: " + desiredDisplacement);
 
-		TrackerGrid.GridCell newCell = divergeCell(targetCell);
-		Vector2D actualDisplacement = trackerGrid.getRandomPoint(newCell);
+		GridCell newCell = divergeCell(targetCell);
+		Vector2D actualDisplacement = trackerGrid.getRandomPoint(newCell,
+				random);
 
-		//System.out.println("Actual: " + newCell.getRow() + " " + newCell.getCol());
-		//System.out.println("Actual: " + actualDisplacement);
+		// System.out.println("Actual: " + newCell.getRow() + " " +
+		// newCell.getCol());
+		// System.out.println("Actual: " + actualDisplacement);
 
 		return new TrackerAction(startState, actualDisplacement.getDirection(),
 				actualDisplacement.getMagnitude());

@@ -231,9 +231,14 @@ public class GeomTools {
 					observeeCameraPos, t);
 			if (canSee(observerState, p, sp, obstacles, maxDistanceError)) {
 				count += 1;
+			} else {
+				count = 0;
+			}
+			if (count * 2 > numCameraArmSteps + 1) {
+				return true;
 			}
 		}
-		return (count * 2 > numCameraArmSteps + 1);
+		return false;
 	}
 
 	/**

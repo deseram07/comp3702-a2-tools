@@ -4,6 +4,7 @@ import java.util.Arrays;
 
 import game.Action;
 import game.AgentState;
+import geom.GridCell;
 import geom.TargetGrid;
 
 /**
@@ -12,10 +13,9 @@ import geom.TargetGrid;
  * @author lackofcheese
  * 
  */
-public class TargetDivergence implements ActionDivergence {
+public class TargetDivergence extends ActionDivergence {
 	/** The discrete grid over which the target moves. */
 	private TargetGrid grid;
-
 	/** The probability of each offset value. */
 	private double[] chances;
 
@@ -57,7 +57,7 @@ public class TargetDivergence implements ActionDivergence {
 	 * @return a random offset as per the distribution (offsets/chances).
 	 */
 	private double randomOffset() {
-		double r = Math.random();
+		double r = random.nextDouble();
 
 		double total = 0;
 		int index = 0;
@@ -77,10 +77,8 @@ public class TargetDivergence implements ActionDivergence {
 	public Action divergeAction(Action action) {
 		AgentState currentState = action.getStartState();
 		AgentState desiredState = action.getResultingState();
-		TargetGrid.GridCell startIndex = grid.getCell(currentState
-				.getPosition());
-		TargetGrid.GridCell desiredIndex = grid.getCell(desiredState
-				.getPosition());
+		GridCell startIndex = grid.getCell(currentState.getPosition());
+		GridCell desiredIndex = grid.getCell(desiredState.getPosition());
 		if (desiredIndex.equals(startIndex)) {
 			return new Action(currentState); // No error when standing still.
 		}
@@ -91,8 +89,7 @@ public class TargetDivergence implements ActionDivergence {
 		double heading = grid.getHeading(actionCode);
 		double newHeading = heading + randomOffset();
 		int newActionCode = grid.getCodeFromHeading(newHeading);
-		TargetGrid.GridCell endIndex = grid.decodeFromIndices(startIndex,
-				newActionCode);
+		GridCell endIndex = grid.decodeFromIndices(startIndex, newActionCode);
 		return new Action(currentState, grid.getCentre(endIndex));
 	}
 }

@@ -3,7 +3,7 @@ package divergence;
 import game.Action;
 import game.ActionResult;
 import game.AgentState;
-import geom.TrackerGrid;
+import geom.ActionEncoder;
 
 import java.awt.geom.Point2D;
 import java.io.BufferedReader;
@@ -18,22 +18,21 @@ import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 /**
- * Represents a sequence of actions and results made by a tracker.
+ * Represents a sequence of actions and results made by an agent.
  * 
  * @author lackofcheese
  * 
  */
-public class TrackerMotionHistory implements
-		Iterable<TrackerMotionHistory.TrackerHistoryEntry> {
+public class MotionHistory implements Iterable<MotionHistory.HistoryEntry> {
 	/** The history */
-	private List<TrackerHistoryEntry> history;
+	private List<HistoryEntry> history;
 
 	/**
 	 * Represents an entry in the history.
 	 * 
 	 * @author lackofcheese
 	 */
-	public static class TrackerHistoryEntry {
+	public static class HistoryEntry {
 		/** The starting state. */
 		private AgentState startState;
 		/** The code for the desired action. */
@@ -55,8 +54,8 @@ public class TrackerMotionHistory implements
 		 * @param resultCode
 		 *            the result code.
 		 */
-		private TrackerHistoryEntry(AgentState startState,
-				int desiredActionCode, int divergedActionCode, int resultCode) {
+		private HistoryEntry(AgentState startState, int desiredActionCode,
+				int divergedActionCode, int resultCode) {
 			this.startState = startState;
 			this.desiredActionCode = desiredActionCode;
 			this.divergedActionCode = divergedActionCode;
@@ -69,7 +68,7 @@ public class TrackerMotionHistory implements
 		 * @param line
 		 *            the String representation.
 		 */
-		private TrackerHistoryEntry(String line, boolean hasCamera) {
+		private HistoryEntry(String line, boolean hasCamera) {
 			Scanner s = new Scanner(line);
 			Point2D pos = new Point2D.Double(s.nextDouble(), s.nextDouble());
 			double heading = Math.toRadians(s.nextDouble());
@@ -127,8 +126,8 @@ public class TrackerMotionHistory implements
 	 * 
 	 * @return the entire history in a list.
 	 */
-	public List<TrackerHistoryEntry> getHistory() {
-		return new ArrayList<TrackerHistoryEntry>(history);
+	public List<HistoryEntry> getHistory() {
+		return new ArrayList<HistoryEntry>(history);
 	}
 
 	/**
@@ -138,7 +137,7 @@ public class TrackerMotionHistory implements
 	 *            the index.
 	 * @return the history entry at the given index.
 	 */
-	public TrackerHistoryEntry getEntry(int entryNo) {
+	public HistoryEntry getEntry(int entryNo) {
 		return history.get(entryNo);
 	}
 
@@ -156,39 +155,38 @@ public class TrackerMotionHistory implements
 	 * 
 	 * @param result
 	 *            the action + result.
-	 * @param grid
-	 *            the grid
+	 * @param encoder
+	 *            the way to encode the actions into action codes.
 	 */
-	public void addEntry(ActionResult result, TrackerGrid grid) {
+	public void addEntry(ActionResult result, ActionEncoder encoder) {
 		Action desiredAction = result.getDesiredAction();
 		Action divergedAction = result.getDivergedAction();
 		AgentState startState = desiredAction.getStartState();
-		history.add(new TrackerHistoryEntry(startState,
-				grid.encodeAction(desiredAction),
-				grid.encodeAction(divergedAction),
-				grid.encodeAction(new Action(startState, result
-								.getResultingState().getPosition()))));
+		history.add(new HistoryEntry(startState,
+				encoder.encodeAction(desiredAction),
+				encoder.encodeAction(divergedAction),
+				encoder.encodeAction(new Action(startState, 
+						result.getResultingState().getPosition()))));
 	}
 
 	/**
-	 * Creates an empty TrackerMotionHistory.
+	 * Creates an empty MotionHistory.
 	 */
-	public TrackerMotionHistory() {
-		history = new ArrayList<TrackerHistoryEntry>();
+	public MotionHistory() {
+		history = new ArrayList<HistoryEntry>();
 	}
 
 	/**
-	 * Creates a TrackerMotionHistory from the given data file.
+	 * Creates a MotionHistory from the given data file.
 	 * 
 	 * @param filename
 	 *            the file to read from.
 	 * @param hasCamera
-	 *            whether the tracker has a camera.
+	 *            whether the agent has a camera.
 	 * @throws IOException
 	 *             if there is an error reading the file.
 	 */
-	public TrackerMotionHistory(String filename, boolean hasCamera)
-			throws IOException {
+	public MotionHistory(String filename, boolean hasCamera) throws IOException {
 		this();
 		BufferedReader input = new BufferedReader(new FileReader(filename));
 		String line;
@@ -204,15 +202,15 @@ public class TrackerMotionHistory implements
 			for (int i = 0; i < numEntries; i++) {
 				line = input.readLine();
 				lineNo++;
-				history.add(new TrackerHistoryEntry(line, hasCamera));
+				history.add(new HistoryEntry(line, hasCamera));
 			}
 		} catch (InputMismatchException e) {
 			throw new IOException(String.format(
-					"Invalid number format on line %d of %s: %s", lineNo, filename,
-					e.getMessage()));
+					"Invalid number format on line %d of %s: %s", lineNo,
+					filename, e.getMessage()));
 		} catch (NoSuchElementException e) {
-			throw new IOException(String.format("Not enough tokens on line %d of %s",
-					lineNo, filename));
+			throw new IOException(String.format(
+					"Not enough tokens on line %d of %s", lineNo, filename));
 		} catch (NullPointerException e) {
 			throw new IOException(String.format(
 					"Line %d expected, but file %s ended.", lineNo, filename));
@@ -233,12 +231,10 @@ public class TrackerMotionHistory implements
 		String lineSep = System.getProperty("line.separator");
 		try {
 			output.write(history.size() + lineSep);
-			for (TrackerHistoryEntry entry : history) {
+			for (HistoryEntry entry : history) {
 				output.write(String.format("%s   %2d %2d %2d%s",
-						entry.getStartState(),
-						entry.getDesiredActionCode(),
-						entry.getDivergedActionCode(),
-						entry.getResultCode(),
+						entry.getStartState(), entry.getDesiredActionCode(),
+						entry.getDivergedActionCode(), entry.getResultCode(),
 						lineSep));
 			}
 		} finally {
@@ -247,7 +243,7 @@ public class TrackerMotionHistory implements
 	}
 
 	@Override
-	public Iterator<TrackerHistoryEntry> iterator() {
+	public Iterator<HistoryEntry> iterator() {
 		return history.iterator();
 	}
 }
