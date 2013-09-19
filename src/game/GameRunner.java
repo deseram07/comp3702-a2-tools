@@ -997,11 +997,7 @@ public class GameRunner {
 		int numGames = 100;
 		int numWins = 0;
 		for (int i = 0; i < numGames; i++) {
-<<<<<<< HEAD
 			int result = runner.runVerbose(null, true);
-=======
-			int result = runner.runVerbose(outputFile, false);
->>>>>>> 8cfb288bedc498d1a84e1fd7146b8c37e08f2e4c
 			if (result == 1) {
 				numWins += 1;
 			}
@@ -1010,20 +1006,11 @@ public class GameRunner {
 		}
 		System.out.println(String.format("Tracker won %d of %d games.",
 				numWins, numGames));
-<<<<<<< HEAD
 		// try {
 		// targetHistory.writeToFile("targetMotionHistory.txt");
 		// trackerHistory.writeToFile("trackerMotionHistory.txt");
 		// } catch (IOException e) {
 		// e.printStackTrace();
 		// }
-=======
-		try {
-			targetHistory.writeToFile("targetMotionHistory.txt");
-			trackerHistory.writeToFile("trackerMotionHistory.txt");
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
->>>>>>> 8cfb288bedc498d1a84e1fd7146b8c37e08f2e4c
 	}
 }
