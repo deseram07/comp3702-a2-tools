@@ -2,10 +2,8 @@ package divergence;
 
 import game.Action;
 import game.ActionResult;
-import game.AgentState;
 import geom.ActionEncoder;
 
-import java.awt.geom.Point2D;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -33,32 +31,21 @@ public class MotionHistory implements Iterable<MotionHistory.HistoryEntry> {
 	 * @author lackofcheese
 	 */
 	public static class HistoryEntry {
-		/** The starting state. */
-		private AgentState startState;
 		/** The code for the desired action. */
 		private int desiredActionCode;
-		/** The code for the diverged action */
-		private int divergedActionCode;
-		/** The result code. */
+		/** The encoded resulting state. */
 		private int resultCode;
 
 		/**
 		 * Constructs an entry from the required values.
 		 * 
-		 * @param startState
-		 *            the starting state.
 		 * @param desiredActionCode
 		 *            the desired action code.
-		 * @param divergedActionCode
-		 *            the diverged action code.
 		 * @param resultCode
 		 *            the result code.
 		 */
-		private HistoryEntry(AgentState startState, int desiredActionCode,
-				int divergedActionCode, int resultCode) {
-			this.startState = startState;
+		private HistoryEntry(int desiredActionCode, int resultCode) {
 			this.desiredActionCode = desiredActionCode;
-			this.divergedActionCode = divergedActionCode;
 			this.resultCode = resultCode;
 		}
 
@@ -68,29 +55,11 @@ public class MotionHistory implements Iterable<MotionHistory.HistoryEntry> {
 		 * @param line
 		 *            the String representation.
 		 */
-		private HistoryEntry(String line, boolean hasCamera) {
+		private HistoryEntry(String line) {
 			Scanner s = new Scanner(line);
-			Point2D pos = new Point2D.Double(s.nextDouble(), s.nextDouble());
-			double heading = Math.toRadians(s.nextDouble());
-			double cameraArmLength = 0;
-			if (hasCamera) {
-				cameraArmLength = s.nextDouble();
-			}
-			startState = new AgentState(pos, heading, hasCamera,
-					cameraArmLength);
 			desiredActionCode = s.nextInt();
-			divergedActionCode = s.nextInt();
 			resultCode = s.nextInt();
 			s.close();
-		}
-
-		/**
-		 * Returns the starting state.
-		 * 
-		 * @return the starting state.
-		 */
-		public AgentState getStartState() {
-			return startState;
 		}
 
 		/**
@@ -103,21 +72,19 @@ public class MotionHistory implements Iterable<MotionHistory.HistoryEntry> {
 		}
 
 		/**
-		 * Returns the code for the diverged action.
-		 * 
-		 * @return the code for the diverged action.
-		 */
-		public int getDivergedActionCode() {
-			return divergedActionCode;
-		}
-
-		/**
 		 * Returns the code for the result.
 		 * 
 		 * @return the code for the result.
 		 */
 		public int getResultCode() {
 			return resultCode;
+		}
+
+		/**
+		 * Returns a string representation of the entry.
+		 */
+		public String toString() {
+			return String.format("%d %d", desiredActionCode, resultCode);
 		}
 	}
 
@@ -161,12 +128,8 @@ public class MotionHistory implements Iterable<MotionHistory.HistoryEntry> {
 	public void addEntry(ActionResult result, ActionEncoder encoder) {
 		Action desiredAction = result.getDesiredAction();
 		Action divergedAction = result.getDivergedAction();
-		AgentState startState = desiredAction.getStartState();
-		history.add(new HistoryEntry(startState,
-				encoder.encodeAction(desiredAction),
-				encoder.encodeAction(divergedAction),
-				encoder.encodeAction(new Action(startState, 
-						result.getResultingState().getPosition()))));
+		history.add(new HistoryEntry(encoder.encodeAction(desiredAction),
+				encoder.encodeAction(divergedAction)));
 	}
 
 	/**
@@ -181,12 +144,10 @@ public class MotionHistory implements Iterable<MotionHistory.HistoryEntry> {
 	 * 
 	 * @param filename
 	 *            the file to read from.
-	 * @param hasCamera
-	 *            whether the agent has a camera.
 	 * @throws IOException
 	 *             if there is an error reading the file.
 	 */
-	public MotionHistory(String filename, boolean hasCamera) throws IOException {
+	public MotionHistory(String filename) throws IOException {
 		this();
 		BufferedReader input = new BufferedReader(new FileReader(filename));
 		String line;
@@ -202,7 +163,7 @@ public class MotionHistory implements Iterable<MotionHistory.HistoryEntry> {
 			for (int i = 0; i < numEntries; i++) {
 				line = input.readLine();
 				lineNo++;
-				history.add(new HistoryEntry(line, hasCamera));
+				history.add(new HistoryEntry(line));
 			}
 		} catch (InputMismatchException e) {
 			throw new IOException(String.format(
@@ -232,14 +193,16 @@ public class MotionHistory implements Iterable<MotionHistory.HistoryEntry> {
 		try {
 			output.write(history.size() + lineSep);
 			for (HistoryEntry entry : history) {
-				output.write(String.format("%s   %2d %2d %2d%s",
-						entry.getStartState(), entry.getDesiredActionCode(),
-						entry.getDivergedActionCode(), entry.getResultCode(),
-						lineSep));
+				output.write(entry + lineSep);
 			}
 		} finally {
 			output.close();
 		}
+	}
+
+	@Override
+	public String toString() {
+		return history.toString();
 	}
 
 	@Override

@@ -61,6 +61,11 @@ public class GameRunner {
 		random.setSeed(seed);
 	}
 
+	/** Runtime motion history of the tracker. */
+	private MotionHistory runtimeTrackerMotionHistory;
+	/** Runtime motion history of the target. */
+	private MotionHistory runtimeTargetMotionHistory;
+
 	/* ------------------------ SETUP PARAMETERS -------------------------- */
 
 	/** True iff a game setup is currently loaded */
@@ -138,8 +143,7 @@ public class GameRunner {
 			if (hasTargetHistory) {
 				String targetHistoryPath = baseFolder.resolve(s.next())
 						.toString();
-				targetMotionHistory = new MotionHistory(targetHistoryPath,
-						false);
+				targetMotionHistory = new MotionHistory(targetHistoryPath);
 			}
 			s.close();
 
@@ -169,8 +173,7 @@ public class GameRunner {
 			s.close();
 
 			if (hasTrackerHistory) {
-				trackerMotionHistory = new MotionHistory(trackerHistoryPath,
-						hasCamera);
+				trackerMotionHistory = new MotionHistory(trackerHistoryPath);
 			}
 
 			line = input.readLine();
@@ -212,9 +215,8 @@ public class GameRunner {
 			extendedObstacles.add(new RectRegion(0, 1, 1, 1));
 
 			setupLoaded = true;
-			actionResultSequence = null;
-			stateSequence = null;
-			cs = null;
+			runtimeTrackerMotionHistory = new MotionHistory();
+			runtimeTargetMotionHistory = new MotionHistory();
 		} catch (InputMismatchException e) {
 			throw new IOException(String.format(
 					"Invalid number format on line %d of %s: %s", lineNo,
@@ -539,9 +541,9 @@ public class GameRunner {
 	}
 
 	/** The sequence of attempted actions with associated results */
-	private Stack<ActionResult[]> actionResultSequence;
+	private Stack<ActionResult[]> actionResultSequence = new Stack<ActionResult[]>();
 	/** The sequence of states of the game. */
-	private Stack<GameState> stateSequence;
+	private Stack<GameState> stateSequence = new Stack<GameState>();
 	/** The current state of the game. */
 	private GameState cs = null;
 	/** Corrects the actions of the tracker. */
@@ -583,9 +585,9 @@ public class GameRunner {
 	 * Reinitialises the game (i.e. goes to turn 0).
 	 */
 	public void initialise() {
+		actionResultSequence.clear();
+		stateSequence.clear();
 		cs = new GameState();
-		actionResultSequence = new Stack<ActionResult[]>();
-		stateSequence = new Stack<GameState>();
 		stateSequence.add(cs);
 		trackerActionCorrector = new ActionCorrector(trackerMoveDistance,
 				trackerSensingParams);
@@ -887,6 +889,40 @@ public class GameRunner {
 	}
 
 	/**
+	 * Returns the runtime target motion history.
+	 * 
+	 * @return the runtime target motion history.
+	 */
+	public MotionHistory getRuntimeTargetMotionHistory() {
+		return runtimeTargetMotionHistory;
+	}
+
+	/**
+	 * Returns the runtime tracker motion history.
+	 * 
+	 * @return the runtime tracker motion history.
+	 */
+	public MotionHistory getRuntimeTrackerMotionHistory() {
+		return runtimeTrackerMotionHistory;
+	}
+
+	/**
+	 * Saves the current history to the runtime variables.
+	 */
+	public void saveHistory() {
+		addTargetHistoryEntries(runtimeTargetMotionHistory);
+		addTrackerHistoryEntries(runtimeTrackerMotionHistory);
+	}
+
+	/**
+	 * Resets the runtime history.
+	 */
+	public void resetHistory() {
+		runtimeTargetMotionHistory = new MotionHistory();
+		runtimeTrackerMotionHistory = new MotionHistory();
+	}
+
+	/**
 	 * Adds the current entries to the given target motion history.
 	 * 
 	 * @param history
@@ -967,9 +1003,6 @@ public class GameRunner {
 	 *            command line arguments; the first should be the setup file.
 	 */
 	public static void main(String[] args) {
-		MotionHistory targetHistory = new MotionHistory();
-		MotionHistory trackerHistory = new MotionHistory();
-
 		String setupFile;
 		String outputFile;
 		if (args.length >= 1) {
@@ -998,17 +1031,18 @@ public class GameRunner {
 		int numWins = 0;
 		for (int i = 0; i < numGames; i++) {
 			int result = runner.runVerbose(outputFile, true);
+			runner.saveHistory();
 			if (result == 1) {
 				numWins += 1;
 			}
-			runner.addTargetHistoryEntries(targetHistory);
-			runner.addTrackerHistoryEntries(trackerHistory);
 		}
 		System.out.println(String.format("Tracker won %d of %d games.",
 				numWins, numGames));
 		try {
-			targetHistory.writeToFile("targetMotionHistory.txt");
-			trackerHistory.writeToFile("trackerMotionHistory.txt");
+			runner.getRuntimeTargetMotionHistory().writeToFile(
+					"targetMotionHistory.txt");
+			runner.getRuntimeTrackerMotionHistory().writeToFile(
+					"trackerMotionHistory.txt");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

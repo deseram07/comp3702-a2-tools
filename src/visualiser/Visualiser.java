@@ -558,6 +558,12 @@ public class Visualiser {
 		GameState state = vp.getCurrentState();
 		if (state.isGameComplete()) {
 			infoLabel.setText("Game complete! " + state.getResultString());
+//			gameRunner.resetHistory();
+//			gameRunner.saveHistory();
+//			System.out.println("Tracker motion history:");
+//			System.out.println(gameRunner.getRuntimeTrackerMotionHistory());
+//			System.out.println("Target motion history:");
+//			System.out.println(gameRunner.getRuntimeTargetMotionHistory());
 		} else if (state.isTrackerTurn()) {
 			infoLabel.setText("Tracker to act.");
 		} else {
