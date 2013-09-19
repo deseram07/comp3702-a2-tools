@@ -3,7 +3,7 @@ package target;
 import game.Action;
 import game.AgentState;
 import geom.TargetGrid;
-import geom.TargetGrid.GridCell;
+import geom.GridCell;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -24,7 +24,7 @@ public class TargetPolicy {
 	/** The grid over which the policy is defined. */
 	private TargetGrid grid;
 	/** The policy itself, as a mapping of grid cells. */
-	private Map<TargetGrid.GridCell, TargetGrid.GridCell> policyMap;
+	private Map<GridCell, GridCell> policyMap;
 
 	/**
 	 * Constructs a duplicate policy.
@@ -34,8 +34,7 @@ public class TargetPolicy {
 	 */
 	public TargetPolicy(TargetPolicy policy) {
 		this.grid = new TargetGrid(policy.grid.getGridSize());
-		this.policyMap = new HashMap<TargetGrid.GridCell, TargetGrid.GridCell>(
-				policy.policyMap);
+		this.policyMap = new HashMap<GridCell, GridCell>(policy.policyMap);
 	}
 
 	/**
@@ -47,7 +46,7 @@ public class TargetPolicy {
 	 *             if the file is invalid.
 	 */
 	public TargetPolicy(String path) throws IOException {
-		policyMap = new HashMap<TargetGrid.GridCell, TargetGrid.GridCell>();
+		policyMap = new HashMap<GridCell, GridCell>();
 
 		BufferedReader input = new BufferedReader(new FileReader(path));
 		int lineNo = 0;
@@ -72,7 +71,7 @@ public class TargetPolicy {
 				lineNo++;
 				s = new Scanner(line);
 				for (int j = 0; j < gridSize; j++) {
-					GridCell current = grid.new GridCell(i, j);
+					GridCell current = new GridCell(i, j);
 					int actionCode = s.nextInt();
 					GridCell target = grid.decodeFromIndices(current,
 							actionCode);
@@ -85,8 +84,8 @@ public class TargetPolicy {
 					"Invalid number format on line %d of %s: %s", lineNo, path,
 					e.getMessage()));
 		} catch (NoSuchElementException e) {
-			throw new IOException(String.format("Not enough tokens on line %d of %s",
-					lineNo, path));
+			throw new IOException(String.format(
+					"Not enough tokens on line %d of %s", lineNo, path));
 		} catch (NullPointerException e) {
 			throw new IOException(String.format(
 					"Line %d expected, but file %s ended.", lineNo, path));

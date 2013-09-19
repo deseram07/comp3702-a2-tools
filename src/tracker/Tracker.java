@@ -7,13 +7,12 @@ import game.Percept;
 import game.RectRegion;
 import game.SensingParameters;
 import game.TrackerAction;
+import geom.GridCell;
 import geom.TargetGrid;
 
-import java.awt.geom.Point2D;
 import java.util.List;
 
-import divergence.TargetMotionHistory;
-import divergence.TrackerMotionHistory;
+import divergence.MotionHistory;
 import target.TargetPolicy;
 
 public class Tracker implements Agent {
@@ -24,14 +23,14 @@ public class Tracker implements Agent {
 	/**
 	 * The motion history of the target(s), or null if no history is available.
 	 * */
-	private TargetMotionHistory targetMotionHistory;
+	private MotionHistory targetMotionHistory;
 	/** The sensing parameters of the target(s). */
 	private SensingParameters targetSensingParams;
 	/** The initial state(s) of the target(s). */
 	private List<AgentState> targetInitialStates;
 
 	/** The motion history of this tracker. */
-	private TrackerMotionHistory myMotionHistory;
+	private MotionHistory myMotionHistory;
 	/** The sensing parameters of this tracker. */
 	private SensingParameters mySensingParams;
 	/** The initial state of this tracker. */
@@ -72,11 +71,11 @@ public class Tracker implements Agent {
 	 *            the goal region.
 	 */
 	public Tracker(int numTargets, TargetPolicy targetPolicy,
-			TargetMotionHistory targetMotionHistory,
+			MotionHistory targetMotionHistory,
 			SensingParameters targetSensingParams,
 			List<AgentState> targetInitialStates,
 
-			TrackerMotionHistory trackerMotionHistory,
+			MotionHistory trackerMotionHistory,
 			SensingParameters trackerSensingParams,
 			AgentState trackerInitialState,
 
@@ -153,13 +152,13 @@ public class Tracker implements Agent {
 	public TrackerAction getAction(int turnNo, ActionResult previousResult,
 			double[] scores, List<Percept> newPercepts) {
 		AgentState myState = previousResult.getResultingState();
-		
+
 		// TODO Write this method!
-		
+
 		// System.out.println(newPercepts);
 		TargetGrid grid = targetPolicy.getGrid();
-		TargetGrid.GridCell current = grid.getCell(myState.getPosition());
-		TargetGrid.GridCell next = targetPolicy.getNextIndex(current);
+		GridCell current = grid.getCell(myState.getPosition());
+		GridCell next = targetPolicy.getNextIndex(current);
 		double heading = grid.getHeading(grid.encodeFromIndices(current, next));
 		return new TrackerAction(myState, heading, 1.0 / grid.getGridSize());
 	}

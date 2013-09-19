@@ -11,7 +11,7 @@ import game.TrackerAction;
  * @author lackofcheese
  * 
  */
-public class ActionCorrector implements ActionDivergence {
+public class ActionCorrector extends ActionDivergence {
 	/** The allowed distance value. */
 	private double stepDistance;
 	/** The tracker's sensing parameters */

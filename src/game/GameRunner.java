@@ -16,14 +16,14 @@ import java.util.Arrays;
 import java.util.InputMismatchException;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Random;
 import java.util.Scanner;
 import java.util.Stack;
 
 import divergence.ActionDivergence;
+import divergence.MotionHistory;
 import divergence.TargetDivergence;
-import divergence.TargetMotionHistory;
 import divergence.TrackerDivergence;
-import divergence.TrackerMotionHistory;
 import divergence.ActionCorrector;
 import divergence.ZeroDivergence;
 import target.Target;
@@ -41,6 +41,26 @@ public class GameRunner {
 	private double MAX_SIGHT_DISTANCE_ERROR = 1e-5;
 	private int NUM_CAMERA_ARM_STEPS = 1000;
 
+	/** The source of randomness. */
+	private Random random;
+
+	/**
+	 * Cosntructs a new GameRunner.
+	 */
+	public GameRunner() {
+		random = new Random();
+	}
+
+	/**
+	 * Sets the seed for randomization within this GameRunner.
+	 * 
+	 * @param seed
+	 *            the seed for the randomizer.
+	 */
+	public void setSeed(long seed) {
+		random.setSeed(seed);
+	}
+
 	/* ------------------------ SETUP PARAMETERS -------------------------- */
 
 	/** True iff a game setup is currently loaded */
@@ -51,7 +71,7 @@ public class GameRunner {
 	/** The (shared) policy of target(s) in the game. */
 	private TargetPolicy targetPolicy;
 	/** The motion history of the target(s), or null if no such history exists. */
-	private TargetMotionHistory targetMotionHistory = null;
+	private MotionHistory targetMotionHistory = null;
 	/** The sensing parameters of the target(s). */
 	private SensingParameters targetSensingParams;
 	/** The initial state(s) of the target(s). */
@@ -61,7 +81,7 @@ public class GameRunner {
 	 * The motion history of the tracker, or null if the tracker's motion is
 	 * deterministic.
 	 */
-	private TrackerMotionHistory trackerMotionHistory = null;
+	private MotionHistory trackerMotionHistory = null;
 	/** The sensing parameters of the tracker. */
 	private SensingParameters trackerSensingParams;
 	/** The initial state of the tracker. */
@@ -118,7 +138,8 @@ public class GameRunner {
 			if (hasTargetHistory) {
 				String targetHistoryPath = baseFolder.resolve(s.next())
 						.toString();
-				targetMotionHistory = new TargetMotionHistory(targetHistoryPath);
+				targetMotionHistory = new MotionHistory(targetHistoryPath,
+						false);
 			}
 			s.close();
 
@@ -148,8 +169,8 @@ public class GameRunner {
 			s.close();
 
 			if (hasTrackerHistory) {
-				trackerMotionHistory = new TrackerMotionHistory(
-						trackerHistoryPath, hasCamera);
+				trackerMotionHistory = new MotionHistory(trackerHistoryPath,
+						hasCamera);
 			}
 
 			line = input.readLine();
@@ -196,11 +217,11 @@ public class GameRunner {
 			cs = null;
 		} catch (InputMismatchException e) {
 			throw new IOException(String.format(
-					"Invalid number format on line %d of %s: %s", lineNo, filename,
-					e.getMessage()));
+					"Invalid number format on line %d of %s: %s", lineNo,
+					filename, e.getMessage()));
 		} catch (NoSuchElementException e) {
-			throw new IOException(String.format("Not enough tokens on line %d of %s",
-					lineNo, filename));
+			throw new IOException(String.format(
+					"Not enough tokens on line %d of %s", lineNo, filename));
 		} catch (NullPointerException e) {
 			throw new IOException(String.format(
 					"Line %d expected, but file %s ended.", lineNo, filename));
@@ -243,7 +264,7 @@ public class GameRunner {
 	 * @return the motion history of the target(s), or null if no motion history
 	 *         is available.
 	 */
-	public TargetMotionHistory getTargetMotionHistory() {
+	public MotionHistory getTargetMotionHistory() {
 		return targetMotionHistory;
 	}
 
@@ -272,7 +293,7 @@ public class GameRunner {
 	 * @return the motion history of the tracker, or null if no motion history
 	 *         is available.
 	 */
-	public TrackerMotionHistory getTrackerMotionHistory() {
+	public MotionHistory getTrackerMotionHistory() {
 		return trackerMotionHistory;
 	}
 
@@ -350,14 +371,21 @@ public class GameRunner {
 			playerStates = new AgentState[numTargets + 1];
 			for (int i = 1; i <= numTargets; i++) {
 				players[i] = new Target(targetPolicy);
+				long seed = random.nextLong();
+				// System.out.println(String.format("Tracker #%d seed: %d", i,
+				// seed));
 				playerDivs[i] = new TargetDivergence(targetPolicy.getGrid());
+				playerDivs[i].setSeed(seed);
 				playerScores[i] = 0;
 				playerStates[i] = targetInitialStates.get(i - 1);
 			}
 			if (trackerMotionHistory == null) {
 				playerDivs[0] = new ZeroDivergence();
 			} else {
+				long seed = random.nextLong();
+				// System.out.println(String.format("Target seed: %d", seed));
 				playerDivs[0] = new TrackerDivergence(trackerMoveDistance);
+				playerDivs[0].setSeed(seed);
 			}
 			playerScores[0] = 0;
 			playerStates[0] = trackerInitialState;
@@ -520,7 +548,8 @@ public class GameRunner {
 		actionResultSequence = new Stack<ActionResult[]>();
 		stateSequence = new Stack<GameState>();
 		stateSequence.add(cs);
-		trackerActionCorrector = new ActionCorrector(trackerMoveDistance, trackerSensingParams);
+		trackerActionCorrector = new ActionCorrector(trackerMoveDistance,
+				trackerSensingParams);
 	}
 
 	/**
@@ -582,13 +611,14 @@ public class GameRunner {
 			desiredAction = cs.players[0].getAction(cs.turnNo, previousResult,
 					scores, new ArrayList<Percept>(cs.trackerPercepts));
 			cs.trackerPercepts.clear();
-			// Correct the action to ensure values are within the correct ranges.
+			// Correct the action to ensure values are within the correct
+			// ranges.
 			desiredAction = trackerActionCorrector.divergeAction(desiredAction);
 		} else {
 			desiredAction = cs.players[playerNo].getAction(cs.turnNo,
 					previousResult, null, null);
 		}
-		
+
 		// Diverge the action.
 		Action divergedAction = cs.playerDivs[playerNo]
 				.divergeAction(desiredAction);
@@ -715,7 +745,8 @@ public class GameRunner {
 		AgentState resultingState = action.getResultingState();
 
 		// If we are lengthening the camera arm, make sure it's valid.
-		if (resultingState.getCameraArmLength() > startState.getCameraArmLength()) {
+		if (resultingState.getCameraArmLength() > startState
+				.getCameraArmLength()) {
 			Point2D playerPos = startState.getPosition();
 			Point2D cameraPos = GeomTools.calculateViewPosition(resultingState);
 			Line2D.Double playerLine = new Line2D.Double(playerPos, cameraPos);
@@ -822,7 +853,7 @@ public class GameRunner {
 	 * @param history
 	 *            the history to add to.
 	 */
-	public void addTargetHistoryEntries(TargetMotionHistory history) {
+	public void addTargetHistoryEntries(MotionHistory history) {
 		for (int i = 1; i < actionResultSequence.size(); i += 2) {
 			ActionResult[] results = actionResultSequence.get(i);
 			for (ActionResult result : results) {
@@ -837,7 +868,7 @@ public class GameRunner {
 	 * @param history
 	 *            the history to add to.
 	 */
-	public void addTrackerHistoryEntries(TrackerMotionHistory history) {
+	public void addTrackerHistoryEntries(MotionHistory history) {
 		for (int i = 0; i < actionResultSequence.size(); i += 2) {
 			ActionResult[] results = actionResultSequence.get(i);
 			history.addEntry(results[0], new TrackerGrid(
@@ -857,7 +888,6 @@ public class GameRunner {
 	 *         Tracker loss.
 	 */
 	public int runVerbose(String outputPath, boolean verbose) {
-		initialise();
 		runFull();
 		int trackerScore = (int) cs.getTrackerScore();
 		int targetScore = (int) cs.getTargetScore();
@@ -912,8 +942,8 @@ public class GameRunner {
 	 *            command line arguments; the first should be the setup file.
 	 */
 	public static void main(String[] args) {
-		TargetMotionHistory targetHistory = new TargetMotionHistory();
-		TrackerMotionHistory trackerHistory = new TrackerMotionHistory();
+		MotionHistory targetHistory = new MotionHistory();
+		MotionHistory trackerHistory = new MotionHistory();
 
 		String setupFile;
 		String outputFile;
@@ -929,6 +959,10 @@ public class GameRunner {
 			outputFile = DEFAULT_OUTPUT_FILE;
 		}
 		GameRunner runner = new GameRunner();
+		long globalSeed = new Random().nextLong();
+		System.out.println("Global seed: " + globalSeed);
+		runner.setSeed(globalSeed);
+
 		try {
 			runner.loadSetup(setupFile);
 		} catch (IOException e) {
@@ -938,7 +972,7 @@ public class GameRunner {
 		int numGames = 100;
 		int numWins = 0;
 		for (int i = 0; i < numGames; i++) {
-			int result = runner.runVerbose(outputFile, true);
+			int result = runner.runVerbose(outputFile, false);
 			if (result == 1) {
 				numWins += 1;
 			}
@@ -947,11 +981,11 @@ public class GameRunner {
 		}
 		System.out.println(String.format("Tracker won %d of %d games.",
 				numWins, numGames));
-//		try {
-//			targetHistory.writeToFile("targetMotionHistory.txt");
-//			trackerHistory.writeToFile("trackerMotionHistory.txt");
-//		} catch (IOException e) {
-//			e.printStackTrace();
-//		}
+		try {
+			targetHistory.writeToFile("targetMotionHistory.txt");
+			trackerHistory.writeToFile("trackerMotionHistory.txt");
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 }
