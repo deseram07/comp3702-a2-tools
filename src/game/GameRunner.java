@@ -209,10 +209,10 @@ public class GameRunner {
 			}
 
 			extendedObstacles = new ArrayList<RectRegion>(obstacles);
-			extendedObstacles.add(new RectRegion(-1, 0, 1, 1));
-			extendedObstacles.add(new RectRegion(1, 0, 1, 1));
-			extendedObstacles.add(new RectRegion(0, -1, 1, 1));
-			extendedObstacles.add(new RectRegion(0, 1, 1, 1));
+			extendedObstacles.add(new RectRegion(-1, -1, 1, 3));
+			extendedObstacles.add(new RectRegion(-1, -1, 3, 1));
+			extendedObstacles.add(new RectRegion(-1, 1, 3, 1));
+			extendedObstacles.add(new RectRegion(1, -1, 1, 3));
 
 			setupLoaded = true;
 			runtimeTrackerMotionHistory = new MotionHistory();
@@ -376,7 +376,11 @@ public class GameRunner {
 				long seed = random.nextLong();
 				// System.out.println(String.format("Tracker #%d seed: %d", i,
 				// seed));
-				playerDivs[i] = new TargetDivergence(targetPolicy.getGrid());
+				try {
+					playerDivs[i] = new TargetDivergence(targetPolicy.getGrid());
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
 				playerDivs[i].setSeed(seed);
 				playerScores[i] = 0;
 				playerStates[i] = targetInitialStates.get(i - 1);
@@ -386,7 +390,11 @@ public class GameRunner {
 			} else {
 				long seed = random.nextLong();
 				// System.out.println(String.format("Target seed: %d", seed));
-				playerDivs[0] = new TrackerDivergence(trackerMoveDistance);
+				try {
+					playerDivs[0] = new TrackerDivergence(trackerMoveDistance);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
 				playerDivs[0].setSeed(seed);
 			}
 			playerScores[0] = 0;
