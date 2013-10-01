@@ -29,13 +29,19 @@ all of its subfolders.
 
 (1) Commands and arguments
 The runnable files and their arguments are:
-    game.GameRunner [setup-file] [output-file]
-    visualiser.Visualiser [setup-file]
+    game.GameRunner [setup-file] [target-distribution-file] [tracker-distribution-file] [-o output-file]
+    visualiser.Visualiser [setup-file] [target-distribution-file] [tracker-distribution-file]
 
 If you compile all the code into "bin" in the project folder (as Eclipse does by
 default), the following command-line commands should work:
-    java -cp bin game.GameRunner [setup-file] [output-file]
-    java -cp bin visualiser.Visualiser [setup-file]
+    java -cp bin game.GameRunner [setup-file] [target-distribution-file] [tracker-distribution-file] [-o output-file]
+    java -cp bin visualiser.Visualiser [setup-file] [target-distribution-file] [tracker-distribution-file]
+
+NOTE: If any of these arguments aren't given, the default values are as follows:
+setup-file = setup.txt
+target-distribution-file = prob-target.txt
+tracker-distribution-file =  prob-tracker.txt
+output-file = output.txt
 
 The commands above may require full paths to Java; see section (4).
 

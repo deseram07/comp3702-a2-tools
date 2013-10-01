@@ -18,18 +18,6 @@ public class TargetDivergence extends DivergenceFromFile {
 	private TargetGrid grid;
 
 	/**
-	 * Creates a divergence with the default distribution.
-	 * 
-	 * @param grid
-	 *            the grid over which the target moves.
-	 * @throws IOException
-	 *             if there is an error loading the distribution file.
-	 */
-	public TargetDivergence(TargetGrid grid) throws IOException {
-		this(grid, "prob-target.txt");
-	}
-
-	/**
 	 * Creates a divergence with the given distribution.
 	 * 
 	 * @param grid

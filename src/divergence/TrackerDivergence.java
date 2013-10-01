@@ -19,18 +19,6 @@ public class TrackerDivergence extends DivergenceFromFile {
 	private TrackerGrid grid;
 
 	/**
-	 * Creates a tracker divergence with the default distribution.
-	 * 
-	 * @param stepDistance
-	 *            the amount this tracker moves per turn.
-	 * @throws IOException
-	 *             if there is an error loading the distribution file.
-	 */
-	public TrackerDivergence(double stepDistance) throws IOException {
-		this(stepDistance, "prob-tracker.txt");
-	}
-
-	/**
 	 * Creates a tracker divergence with the given distribution.
 	 * 
 	 * @param stepDistance

@@ -38,6 +38,39 @@ import tracker.Tracker;
  * @author lackofcheese
  */
 public class GameRunner {
+	/** The default file to load the game setup from. */
+	private static final String DEFAULT_SETUP_FILE = "setup.txt";
+	/** The default file to output the game sequence to. */
+	private static final String DEFAULT_OUTPUT_FILE = "output.txt";
+	/** The default file for the target's divergence distribution. */
+	private static final String DEFAULT_TARGET_FILE = "prob-target.txt";
+	/** The default file for the tracker's divergence distribution. */
+	private static final String DEFAULT_TRACKER_FILE = "prob-tracker.txt";
+	/** The file containing the target's divergence distribution. */
+	private String targetDistributionFile = DEFAULT_TARGET_FILE;
+	/** The file containing the tracker's divergence distribution. */
+	private String trackerDistributionFile = DEFAULT_TRACKER_FILE;
+
+	/**
+	 * Sets the distribution file for the target's divergence.
+	 * 
+	 * @param newPath
+	 *            the new path.
+	 */
+	public void setTargetDistribution(String newPath) {
+		targetDistributionFile = newPath;
+	}
+
+	/**
+	 * Sets the distribution file for the tracker's divergence.
+	 * 
+	 * @param newPath
+	 *            the new path.
+	 */
+	public void setTrackerDistribution(String newPath) {
+		trackerDistributionFile = newPath;
+	}
+
 	private double MAX_SIGHT_DISTANCE_ERROR = 1e-5;
 	private int NUM_CAMERA_ARM_STEPS = 1000;
 
@@ -377,7 +410,8 @@ public class GameRunner {
 				// System.out.println(String.format("Tracker #%d seed: %d", i,
 				// seed));
 				try {
-					playerDivs[i] = new TargetDivergence(targetPolicy.getGrid());
+					playerDivs[i] = new TargetDivergence(
+							targetPolicy.getGrid(), targetDistributionFile);
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
@@ -391,7 +425,8 @@ public class GameRunner {
 				long seed = random.nextLong();
 				// System.out.println(String.format("Target seed: %d", seed));
 				try {
-					playerDivs[0] = new TrackerDivergence(trackerMoveDistance);
+					playerDivs[0] = new TrackerDivergence(trackerMoveDistance,
+							trackerDistributionFile);
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
@@ -999,11 +1034,6 @@ public class GameRunner {
 		return winResult;
 	}
 
-	/** The default file to load the game setup from. */
-	private static final String DEFAULT_SETUP_FILE = "setup.txt";
-	/** The default file to output the game sequence to. */
-	private static final String DEFAULT_OUTPUT_FILE = "output.txt";
-
 	/**
 	 * Runs a game, with the problem setup file passed from the command line.
 	 * 
@@ -1011,20 +1041,42 @@ public class GameRunner {
 	 *            command line arguments; the first should be the setup file.
 	 */
 	public static void main(String[] args) {
-		String setupFile;
-		String outputFile;
-		if (args.length >= 1) {
-			setupFile = args[0];
-			if (args.length >= 2) {
-				outputFile = args[1];
+		String setupFile = null;
+		String outputFile = null;
+		String targetFile = null;
+		String trackerFile = null;
+		for (int i = 0; i < args.length; i++) {
+			String arg = args[i].trim();
+			if (arg.equals("-o")) {
+				i++;
+				if (i < args.length) {
+					outputFile = args[i].trim();
+				}
 			} else {
-				outputFile = DEFAULT_OUTPUT_FILE;
+				if (setupFile == null) {
+					setupFile = arg;
+				} else if (targetFile == null) {
+					targetFile = arg;
+				} else if (trackerFile == null) {
+					trackerFile = arg;
+				}
 			}
-		} else {
+		}
+		if (setupFile == null) {
 			setupFile = DEFAULT_SETUP_FILE;
+		}
+		if (outputFile == null) {
 			outputFile = DEFAULT_OUTPUT_FILE;
 		}
+		if (targetFile == null) {
+			targetFile = DEFAULT_TARGET_FILE;
+		}
+		if (trackerFile == null) {
+			trackerFile = DEFAULT_TRACKER_FILE;
+		}
 		GameRunner runner = new GameRunner();
+		runner.setTargetDistribution(targetFile);
+		runner.setTrackerDistribution(trackerFile);
 		long globalSeed = new Random().nextLong();
 		System.out.println("Global seed: " + globalSeed);
 		runner.setSeed(globalSeed);
@@ -1046,13 +1098,12 @@ public class GameRunner {
 		}
 		System.out.println(String.format("Tracker won %d of %d games.",
 				numWins, numGames));
-		try {
-			runner.getRuntimeTargetMotionHistory().writeToFile(
-					"targetMotionHistory.txt");
-			runner.getRuntimeTrackerMotionHistory().writeToFile(
-					"trackerMotionHistory.txt");
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		/*
+		 * try { runner.getRuntimeTargetMotionHistory().writeToFile(
+		 * "targetMotionHistory.txt");
+		 * runner.getRuntimeTrackerMotionHistory().writeToFile(
+		 * "trackerMotionHistory.txt"); } catch (IOException e) {
+		 * e.printStackTrace(); }
+		 */
 	}
 }
