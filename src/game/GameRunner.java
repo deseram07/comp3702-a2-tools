@@ -932,6 +932,125 @@ public class GameRunner {
 	}
 
 	/**
+	 * Loads a completed game from an output file.
+	 * 
+	 * @param filename
+	 *            the path to read from
+	 * @throws IOException
+	 *             if the file cannot be read.
+	 */
+	public void loadGame(String filename) throws IOException {
+		if (!setupLoaded) {
+			return;
+		}
+		actionResultSequence = new Stack<ActionResult[]>();
+		stateSequence = new Stack<GameState>();
+		stateSequence.push(new GameState());
+		cs = new GameState();
+
+		BufferedReader input = new BufferedReader(new FileReader(filename));
+		String line;
+		int lineNo = 0;
+		Scanner s;
+		try {
+			line = input.readLine();
+			lineNo++;
+			s = new Scanner(line);
+			int numTurns = s.nextInt();
+			s.close();
+
+			for (int i = 0; i < numTargets + 2; i++) {
+				// Skip the initial-state lines.
+				line = input.readLine();
+				lineNo++;
+			}
+
+			int playerNo = 0;
+			ActionResult[] results = new ActionResult[1];
+			int numLines = (numTurns / 2) * (numTargets + 1);
+			for (int i = 0; i < numLines; i++) {
+				if (i == numLines - 1) {
+					cs.gameComplete = true;
+				}
+
+				line = input.readLine();
+				lineNo++;
+				s = new Scanner(line);
+				double x = s.nextDouble();
+				double y = s.nextDouble();
+				double heading = Math.toRadians(s.nextDouble());
+				boolean hasCamera = cs.isTrackerTurn
+						&& trackerSensingParams.hasCamera();
+				double cameraArmLength = 0;
+				if (hasCamera) {
+					cameraArmLength = s.nextDouble();
+				}
+				double reward = s.nextDouble();
+				s.close();
+				Action action;
+				AgentState oldState = cs.playerStates[playerNo];
+				AgentState newState = new AgentState(new Point2D.Double(x, y),
+						heading, hasCamera, cameraArmLength);
+				cs.playerStates[playerNo] = newState;
+				if (cs.isTrackerTurn) {
+					if (!oldState.getPosition().equals(newState.getPosition())) {
+						action = new TrackerAction(oldState, heading,
+								trackerMoveDistance);
+					} else if (oldState.getHeading() != newState.getHeading()) {
+						action = new TrackerAction(oldState, heading, 0);
+					} else if (oldState.getCameraArmLength() != newState
+							.getCameraArmLength()) {
+						action = new TrackerAction(oldState,
+								newState.getCameraArmLength());
+					} else {
+						// HQ call are ignored - it won't matter in the
+						// visualiser.
+						action = new TrackerAction(oldState, false);
+					}
+				} else {
+					action = new Action(oldState, newState.getPosition());
+				}
+
+				int index = (playerNo == 0) ? 0 : playerNo - 1;
+				results[index] = new ActionResult(action, action, newState,
+						reward);
+				cs.playerScores[playerNo] += reward;
+
+				playerNo += 1;
+				if (cs.isTrackerTurn) {
+					cs.turnNo += 1;
+					stateSequence.push(cs);
+					cs = new GameState(cs);
+					cs.isTrackerTurn = false;
+					actionResultSequence.push(results);
+					results = new ActionResult[numTargets];
+				} else if (playerNo > numTargets) {
+					playerNo = 0;
+					cs.turnNo += 1;
+					stateSequence.push(cs);
+					cs = new GameState(cs);
+					cs.isTrackerTurn = true;
+					actionResultSequence.push(results);
+					results = new ActionResult[1];
+				}
+			}
+
+		} catch (InputMismatchException e) {
+			throw new IOException(String.format(
+					"Invalid number format on line %d of %s: %s", lineNo,
+					filename, e.getMessage()));
+		} catch (NoSuchElementException e) {
+			throw new IOException(String.format(
+					"Not enough tokens on line %d of %s", lineNo, filename));
+		} catch (NullPointerException e) {
+			throw new IOException(String.format(
+					"Line %d expected, but file %s ended.", lineNo, filename));
+		} finally {
+			input.close();
+		}
+	}
+
+	/**
 	 * Returns the runtime target motion history.
 	 * 
 	 * @return the runtime target motion history.

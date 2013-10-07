@@ -54,7 +54,7 @@ public class Visualiser {
 
 	private JMenuBar menuBar;
 	private JMenu fileMenu;
-	private JMenuItem loadSetupItem, writeOutputItem, exitItem;
+	private JMenuItem loadSetupItem, loadOutputItem, writeOutputItem, exitItem;
 	private JMenu gameMenu;
 	private JMenuItem playPauseItem, resetItem, backItem, forwardItem,
 			stepItem;
@@ -96,6 +96,8 @@ public class Visualiser {
 			String cmd = e.getActionCommand();
 			if (cmd.equals("Load setup")) {
 				loadSetup();
+			} else if (cmd.equals("Load output")) {
+				loadOutput();
 			} else if (cmd.equals("Write output")) {
 				writeOutput();
 			} else if (cmd.equals("Play")) {
@@ -332,6 +334,11 @@ public class Visualiser {
 		loadSetupItem.addActionListener(menuListener);
 		fileMenu.add(loadSetupItem);
 
+		loadOutputItem = new JMenuItem("Load output");
+		loadOutputItem.setMnemonic(KeyEvent.VK_O);
+		loadOutputItem.addActionListener(menuListener);
+		fileMenu.add(loadOutputItem);
+
 		writeOutputItem = new JMenuItem("Write output");
 		writeOutputItem.setMnemonic(KeyEvent.VK_W);
 		writeOutputItem.addActionListener(menuListener);
@@ -486,6 +493,24 @@ public class Visualiser {
 			return;
 		}
 		loadSetup(f);
+	}
+
+	private void loadOutput(File f) {
+		try {
+			gameRunner.loadGame(f.getPath());
+			updateMaximum();
+			vp.gotoFrame(0);
+		} catch (IOException e) {
+			showFileError(f);
+		}
+	}
+
+	private void loadOutput() {
+		File f = askForFile();
+		if (f == null) {
+			return;
+		}
+		loadOutput(f);
 	}
 
 	private void writeOutput(File f) {
